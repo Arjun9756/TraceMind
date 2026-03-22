@@ -1,0 +1,8 @@
+.env
+node_modules
+dist
+Dist*
+Practice.cpp
+Practice.exe
+Algorithm.txt
+.vscode
