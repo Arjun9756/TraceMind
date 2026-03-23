@@ -10,10 +10,20 @@ router.get("/" , (req:Request , res:Response)=>{
     })
 })
 
-router.post("/queue" , async (req:Request , res:Response)=>{
+router.post("/" , async (req:Request , res:Response)=>{
     try{
         const rawData = req.body
-        const {calculated , status , alertMessage} = await calculateQueue(rawData)
+        const queueResponse = await calculateQueue(rawData)
+
+        // Bull MQ Auto Retry in Future
+        if(!queueResponse){
+            return res.status(501).json({
+                status:false,
+                message:"Internal Server Error in Trace Mind"
+            })
+        }
+
+        const {status , calculated , alertMessage} = queueResponse
 
         const snapshot = await QueueSnapshot.create({
             queueName:rawData.queueName,
@@ -24,7 +34,6 @@ router.post("/queue" , async (req:Request , res:Response)=>{
                 failed:rawData.failed,
                 stalledCount:rawData.stalledCount,
                 councurrency:rawData.concurrency,
-                failed:rawData.failed
             },
             calculated,
             status,
@@ -44,3 +53,5 @@ router.post("/queue" , async (req:Request , res:Response)=>{
         })
     }
 })
+
+export default router
