@@ -1,7 +1,7 @@
 import express from 'express'
 import path from 'path'
 import { JobEvent } from '../Models/JobEventSchema.model'
-import JobEventLogic from '../BusinessLogic/JobEvent'
+import JobEventLogic from '../BusinessLogic/JobEvent.logic'
 
 interface RawData {
     queueName: string,

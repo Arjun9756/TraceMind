@@ -14,7 +14,7 @@ export interface ISystemSnapshot{
         processUptime:number
     },
     calculated:{
-        isCpuHigh:boolean,
+        isHighCPU:boolean,
         isHighMemory:boolean,
         memUsedPercent:number,
         memUsedMB:number

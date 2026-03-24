@@ -1,6 +1,6 @@
 import express , {Request , Response} from 'express'
 import {QueueSnapshot} from '../Models/QueueSnapshot.model'
-import calculateQueue from '../BusinessLogic/CalculateQueue'
+import calculateQueue from '../BusinessLogic/Queue.logic'
 
 const router = express.Router()
 router.get("/" , (req:Request , res:Response)=>{
