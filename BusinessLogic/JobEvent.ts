@@ -90,7 +90,7 @@ function getZScore(list:string[] , mean:number , currProcessing:number):number{
 
 async function JobEventLogic(rawData:RawData):Promise<JobResponse | null>{
     try{
-        const isRetryStrom = (rawData.attemptMade > rawData.maxAttempt * 0.7 ? true : false)
+        const isRetryStrom = (rawData.attemptMade > (rawData.maxAttempt * 0.7) ? true : false)
         const {avgAtTime , avgProcessingMs , list} = await getProcessing(rawData.queueName)
         const zScore = (list.length >= 5 ? getZScore(list , avgProcessingMs , rawData.processingMs) : 0)
         const isAnomaly = rawData.processingMs > 5000 // 5 second se jyda liya time

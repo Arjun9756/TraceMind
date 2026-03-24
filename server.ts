@@ -6,6 +6,7 @@ import os from 'os'
 import connectToMongo from './Database/Mongo.db'
 import queueRoute from './Routes/Queue.route'
 import io from './Websocket/Websocket'
+import jobRoute from './Routes/JobEvent.route'
 
 const app = express()
 dotenv.config({
@@ -24,6 +25,8 @@ app.options('*' , (req , res)=>{
 })
 
 app.use('/api/queue' , queueRoute)
+app.use('/api/job' , jobRoute)
+
 
 app.listen(process.env.PORT || 3000 , async ()=>{
     await connectToMongo()

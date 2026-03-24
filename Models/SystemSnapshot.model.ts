@@ -55,8 +55,8 @@ const SystemSnapshotSchema = new Schema<ISystemSnapshot>({
   capturedAt: { type: Date, default: Date.now },
 }, { timestamps: false })
 
-SystemSnapshotSchema.index({captureAt:-1})
-SystemSnapshotSchema.index({capture:-1} , {expireAfterSeconds:864000})
+SystemSnapshotSchema.index({capturedAt:-1})
+SystemSnapshotSchema.index({capturedAt:-1} , {expireAfterSeconds:864000})
 
 export const SystemSnapshot = mongoose.model<ISystemSnapshot>(
   'SystemSnapshot', SystemSnapshotSchema
