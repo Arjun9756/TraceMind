@@ -39,6 +39,7 @@ router.post("/" , async (req:Request , res:Response)=>{
             status,
             alertMessage
         })
+        await snapshot.save()
 
         return res.status(200).json({
             status:true,

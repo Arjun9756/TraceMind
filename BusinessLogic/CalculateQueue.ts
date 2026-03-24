@@ -71,7 +71,7 @@ async function getZScore(queueName:string , avgProcessingMs:number):Promise<numb
 
         let meanDiffSum = 0
         for(let item of list){
-            meanDiffSum += Math.pow((avgProcessingMs - parseInt(item)) , 2)
+            meanDiffSum += Math.pow((avgProcessingMs - parseInt(item ?? "")) , 2)
         }
 
         let stddev = Math.sqrt(meanDiffSum)
@@ -79,7 +79,7 @@ async function getZScore(queueName:string , avgProcessingMs:number):Promise<numb
             return 0
         } 
 
-        return (parseInt(list[list.length-1]) / avgProcessingMs) / stddev
+        return (parseInt(list[list.length-1]!) - avgProcessingMs) / stddev // ! tells compiler i promise that index is not empty
     }
     catch(error:any){
         console.log(`Error While Getting ZScore ${error?.message}`)
