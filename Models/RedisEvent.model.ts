@@ -1,19 +1,21 @@
-import mongoose, { Document, Schema } from 'mongoose'
+import mongoose, { Document, MiscellaneousExpressionOperatorReturningNumber, Schema } from 'mongoose'
 export interface IRedisSnapshot {
     raw: {
         latencyMs: number,
         memUsedMB: number,
         memMaxMB: number,
-        connectedClients: 5,
-        commandPerSec: 1200,
-        evictedKeys: number
+        connectedClients: number,
+        commandPerSec: number,
+        evictedKeys: number,
+        keySpaceHits:number,
+        keySpaceMisses:number    // redis.info(stats)
     },
     calculated: {
         hitRate: number,  // hits/(hits+misses)*100
         memUsedPercent: number, // memUsed/memMax*100
         isHighLatency: boolean, // latency > 100Ms
         isEvicting: boolean, // evictedKeys > 0
-        isLowHitRate:number// hitRate < 60
+        isLowHitRate:boolean// hitRate < 60
     },
     alertMessage: string,
     captureAt: Date,
@@ -28,6 +30,8 @@ const RedisSnapshotSchema = new Schema<IRedisSnapshot>({
         connectedClients: { type: Number, default: 0 },
         commandsPerSec: { type: Number, default: 0 },
         evictedKeys: { type: Number, default: 0 },
+        keySpaceHits:{type:Number, default:0},
+        keySpaceMisses:{type:Number , default:0}
     },
 
     calculated: {
