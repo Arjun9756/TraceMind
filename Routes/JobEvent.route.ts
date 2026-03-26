@@ -2,6 +2,9 @@ import express from 'express'
 import path from 'path'
 import { JobEvent } from '../Models/JobEventSchema.model'
 import JobEventLogic from '../BusinessLogic/JobEvent.logic'
+import {getIO} from '../Websocket/Websocket'
+import generateChat from '../Utility/Groq.AI'
+const io = getIO()
 
 interface RawData {
     queueName: string,
@@ -20,6 +23,7 @@ router.get('/', (req, res) => {
         message: "Job Event Route is Working"
     })
 })
+
 
 router.post('/', async (req, res) => {
     const rawData: RawData = req.body
