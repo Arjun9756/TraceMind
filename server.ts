@@ -5,9 +5,10 @@ import http from 'http'
 import os from 'os'
 import connectToMongo from './Database/Mongo.db'
 import queueRoute from './Routes/Queue.route'
-import io from './Websocket/Websocket'
 import jobRoute from './Routes/JobEvent.route'
 import systemRoute from './Routes/System.route'
+import redisRoute from './Routes/Redis.route'
+import {server} from './Websocket/Websocket'
 
 const app = express()
 dotenv.config({
@@ -28,8 +29,13 @@ app.options('*' , (req , res)=>{
 app.use('/api/queue' , queueRoute)
 app.use('/api/job' , jobRoute)
 app.use('/api/system' , systemRoute)
+app.use('/api/redis' , redisRoute)
 
 app.listen(process.env.PORT || 3000 , async ()=>{
     await connectToMongo()
     console.log(`Server is Running on Port ${process.env.SERVER_PORT || 3000}`)
+})
+
+server.listen(process.env.WEBSOCKET_SERVER || 5500 , ()=>{
+    console.log("Websocket Server is Running")
 })

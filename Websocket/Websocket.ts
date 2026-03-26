@@ -1,4 +1,4 @@
-import {Server} from 'socket.io'
+import {Server , Socket} from 'socket.io'
 import http from 'http'
 import path from 'path'
 import express from 'express'
@@ -20,4 +20,11 @@ io.on("connection" , (socket)=>{
     console.log(`Connection Stablished ${socket.id}`)
 })
 
-export default io
+export function getIO():Server{
+    if(io){
+        return io
+    }
+    throw new Error("No Socket is Avalilable in System")
+}
+
+export {server}
