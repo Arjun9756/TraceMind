@@ -17,9 +17,6 @@ const redis = new Redis({
         }
         return Math.min(3000 , times * 100)
     },
-    tls:{
-        rejectUnauthorized:false,
-    },
     connectTimeout:10000,
     commandTimeout:12000
 })

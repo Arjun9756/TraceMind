@@ -51,7 +51,6 @@ const RedisSnapshotSchema = new Schema<IRedisSnapshot>({
     captureAt: { type: Date, default: Date.now },
 }, { timestamps: false })
 
-RedisSnapshotSchema.index({ captureAt: -1 })
 RedisSnapshotSchema.index(
     { captureAt: 1 },
     { expireAfterSeconds: 864000 }

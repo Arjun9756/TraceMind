@@ -9,8 +9,17 @@ import jobRoute from './Routes/JobEvent.route'
 import systemRoute from './Routes/System.route'
 import redisRoute from './Routes/Redis.route'
 import {server} from './Websocket/Websocket'
+import cors from 'cors'
 
 const app = express()
+app.use(cors({
+    origin:"*",
+    allowedHeaders:["Authorization" , 'IsSycnNeed'],
+    methods:["GET" , "POST" , "PUT" , "PATCH" , "DELETE" , "OPTIONS"],
+    preflightContinue:true,
+    optionsSuccessStatus:200
+}))
+
 dotenv.config({
     path:path.join(__dirname , ".env")
 })
@@ -19,12 +28,8 @@ app.use(express.urlencoded({extended:true}))
 app.use(express.json())
 app.set('trust proxy' , true)         // Forward Proxy Manage
 
-app.options('*' , (req , res)=>{
-    return res.status(200).json({
-        status:true,
-        message:"Access Control Allowed Origin",
-    })
-})
+// Serve static frontend files
+// app.use(express.static(path.join(__dirname, 'public')))
 
 app.use('/api/queue' , queueRoute)
 app.use('/api/job' , jobRoute)
