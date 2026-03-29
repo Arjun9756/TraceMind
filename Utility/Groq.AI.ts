@@ -6,8 +6,6 @@ dotenv.config({
     path: path.join(__dirname, '..', '.env')
 })
 
-console.log(process.env.GROQ_API_KEY)
-
 const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY,
     maxRetries: 3,

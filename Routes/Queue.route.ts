@@ -117,6 +117,7 @@ router.post("/", async (req: Request, res: Response) => {
             })
 
             io.emit('groqQueueAnalyse' , aiExplanation)
+            console.log(`AI Explain ${cleaned}`)
         }
         catch (error: any) {
             aiExplanation = {

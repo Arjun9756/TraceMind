@@ -24,8 +24,9 @@ interface QueueResponse{
 }
 
 async function saveToRedis(queueName:string , rawData:RawDataQueue){
+    const statsKey = `${queueName}:stats`
     try{    
-        await redis.set(queueName , JSON.stringify(rawData))
+        await redis.set(statsKey , JSON.stringify(rawData))
         console.log(`Data Saved To Redis`)
     }
     catch(error:any){
@@ -40,8 +41,9 @@ async function saveToRedis(queueName:string , rawData:RawDataQueue){
  * @returns {queueName , waiting , active , completed , stalledCount , councurrency}
  */
 async function getPrevQueueData(queueName:string):Promise<RawDataQueue | null>{
+    const statsKey = `${queueName}:stats`
     try{
-        const data = await redis.get(queueName)
+        const data = await redis.get(statsKey)
         if(!data)
             return null
         console.log("Data Fetched From Redis Prev Queue" , data)
@@ -61,8 +63,9 @@ async function getPrevQueueData(queueName:string):Promise<RawDataQueue | null>{
  * @returns {number}
  */
 async function getZScore(queueName:string , avgProcessingMs:number):Promise<number>{
+    const processingKey = `${queueName}:processing`
     try{
-        const list = await redis.lrange(queueName , 0 , -1)
+        const list = await redis.lrange(processingKey , 0 , -1)
         if(list.length < 5)
             return 0
 
@@ -71,15 +74,17 @@ async function getZScore(queueName:string , avgProcessingMs:number):Promise<numb
 
         let meanDiffSum = 0
         for(let item of list){
-            meanDiffSum += Math.pow((avgProcessingMs - parseInt(item ?? "")) , 2)
+            meanDiffSum += Math.pow((avgProcessingMs - parseInt(item ?? "0")) , 2)
         }
 
+        meanDiffSum = meanDiffSum / list.length
         let stddev = Math.sqrt(meanDiffSum)
-        if(stddev){
+        
+        if(!stddev || stddev === 0 || stddev == null || stddev === undefined){
             return 0
         } 
 
-        return (parseInt(list[list.length-1]!) - avgProcessingMs) / stddev // ! tells compiler i promise that index is not empty
+        return parseFloat(((parseInt(list[0]!) - avgProcessingMs) / stddev).toFixed(2)) // ! tells compiler i promise that index is not empty
     }
     catch(error:any){
         console.log(`Error While Getting ZScore ${error?.message}`)
@@ -94,9 +99,10 @@ async function getZScore(queueName:string , avgProcessingMs:number):Promise<numb
  * @returns {null | avgProcessingMs}
  */
 async function getAvgProcessing(queueName:string):Promise<number | null>{
+    const processingKey = `${queueName}:processing`
     try{
         let totalSum = 0
-        const list = await redis.lrange(queueName , 0 , -1)
+        const list = await redis.lrange(processingKey , 0 , -1)
         console.log(`List For Queue ${list}`)
 
         if(list.length < 5){
@@ -122,19 +128,27 @@ async function getAvgProcessing(queueName:string):Promise<number | null>{
  * @param waiting 
  * @returns {status , alertMessage}
  */
-function getStatus(status:QueueResponse['status'] , alertMessage:QueueResponse['alertMessage'] , growthRate:number , failureRate:number , isGhostFailure:boolean , waiting:number){
+function getStatus(growthRate:number , failureRate:number , isGhostFailure:boolean , zScore:number , waiting:number):{status: QueueResponse['status'], alertMessage: string}{
     if(isGhostFailure){
-        status = "ghostFailure"
-        alertMessage = `Workers Dead ${waiting} Jobs Are Waiting`
+        return {
+            status:"ghostFailure",
+            alertMessage:`Workers Dead ${waiting} Jobs Are Waiting`
+        }
     }
     else if(failureRate > 10 || growthRate > 20){
-        status = "critical"
-        alertMessage = (failureRate > 10 ? `Failure Rate is Going High ${failureRate}` : `Growth Rate is Going High ${growthRate}`)
+        return {
+            status:"critical",
+            alertMessage:(failureRate > 10 ? `Failure Rate is Going High ${failureRate}` : `Growth Rate is Going High ${growthRate}`)
+        }
     }
-    else{
-        status = "healthy"
-        alertMessage = "Internal System is Healthy"
+    else if (failureRate > 2 || growthRate > 5 || zScore > 2) {
+        return { status: "warning", alertMessage: `Warning: failureRate=${failureRate}% growthRate=${growthRate}` }
     }
+    return {
+        status: "healthy",
+        alertMessage: "Internal System is Healthy"
+    }
+    
 }
 
 /**
@@ -148,7 +162,7 @@ async function calculateQueue(rawData:RawDataQueue):Promise<QueueResponse | null
     try{
         const prevData = await getPrevQueueData(rawData.queueName)
         if(!prevData || prevData == null){
-            await redis.set(rawData.queueName , JSON.stringify(rawData))
+            await saveToRedis(rawData.queueName , rawData)
             return {
                 calculated:{
                     growthRate:0,
@@ -162,23 +176,20 @@ async function calculateQueue(rawData:RawDataQueue):Promise<QueueResponse | null
             }
         }
 
-        const growthRate = rawData.waiting - prevData.waiting        // currWaiting - prevWaiting
+        const growthRate = prevData.waiting > 0 ? ((rawData.waiting - prevData.waiting) / prevData.waiting) * 100 : 0        // currWaiting - prevWaiting
         const totalJobs = rawData.completed + rawData.failed         // completed + failed = total jobs
 
         const failedRate =  totalJobs > 0 ? rawData.failed / totalJobs * 100 : 0
-        const isGhostFailure = (rawData.active == 0 && rawData.waiting > 0 ? true : false)
+        const isGhostFailure = (rawData.active == 0 && rawData.waiting > 0 && rawData.completed === prevData.completed ? true : false)
 
-        let status:QueueResponse['status'] = 'healthy'
-        let alertMessage:QueueResponse['alertMessage'] = "No Issue Detected"
-
-        // get status filled
-        getStatus(status , alertMessage , growthRate , failedRate , isGhostFailure , rawData.waiting)
         let avgProcessingMs = await getAvgProcessing(rawData.queueName)
-
-        if(avgProcessingMs === null){
+         if(avgProcessingMs === null){
             avgProcessingMs = 0;
         }
+        
         const zScore = await getZScore(rawData.queueName , avgProcessingMs)
+        // get status filled
+        let {status , alertMessage} = getStatus(growthRate , failedRate , isGhostFailure , zScore , rawData.waiting)
 
         // saved to redis
         await saveToRedis(rawData.queueName , rawData)

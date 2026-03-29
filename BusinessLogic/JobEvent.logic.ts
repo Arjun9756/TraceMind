@@ -29,14 +29,15 @@ interface ProcessingStats{
  * @returns {none} 
  */
 async function pushProcessingMs(queueName:string , processingMs:number){
+    const key = `${queueName}:processing`
     try{
         // 1.Check Length of List
-        const listLength = await redis.llen(queueName)
+        const listLength = await redis.llen(key)
         if(listLength >= 5){
-            await redis.lpop(queueName)
+            await redis.lpop(key)
         }
 
-        await redis.rpush(queueName)
+        await redis.rpush(key , processingMs.toString())
         return
     }
     catch(error:any){
@@ -50,8 +51,9 @@ async function pushProcessingMs(queueName:string , processingMs:number){
  * @returns {avgAtTime , avgProcessingMs , list of processingMs}
  */
 async function getProcessing(queueName:string):Promise<ProcessingStats>{
+    const key = `${queueName}:processing`
     try{
-        const list = await redis.lrange(queueName , 0 , -1)
+        const list = await redis.lrange(key , 0 , -1)
         let totalSum = 0
 
         for(let item of list){
@@ -78,14 +80,15 @@ function getZScore(list:string[] , mean:number , currProcessing:number):number{
     // 1. meanDiffSum calculate
     let variance = 0
     for(let item of list){
-        variance += Math.pow((mean - parseInt(item ?? "0")) , 2)
+        variance += Math.pow((parseInt(item ?? "0") - mean) , 2)
     }
 
+    variance = variance / list.length
     let stddev = Math.sqrt(variance)
     if(stddev === 0){
         return 0
     }
-    return (parseInt(list[list.length-1]!) - currProcessing) / stddev
+    return (currProcessing - mean) / stddev
 }
 
 async function JobEventLogic(rawData:RawData):Promise<JobResponse | null>{
@@ -94,7 +97,8 @@ async function JobEventLogic(rawData:RawData):Promise<JobResponse | null>{
         const {avgAtTime , avgProcessingMs , list} = await getProcessing(rawData.queueName)
         const zScore = (list.length >= 5 ? getZScore(list , avgProcessingMs , rawData.processingMs) : 0)
         const isAnomaly = rawData.processingMs > 5000 // 5 second se jyda liya time
-
+        
+        await pushProcessingMs(rawData.queueName , rawData.processingMs)
         return {
             isRetryStrom,
             avgAtTime,
