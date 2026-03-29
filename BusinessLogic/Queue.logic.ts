@@ -151,9 +151,15 @@ function getStatus(growthRate:number , failureRate:number , isGhostFailure:boole
     
 }
 
+async function recordProcessingTime(queueName: string, processingTimeMs: number) {
+    const processingKey = `${queueName}:processing`
+    await redis.lpush(processingKey, processingTimeMs.toString())
+    await redis.ltrim(processingKey, 0, 4)  // last 5 entries only
+}
+
 /**
  * 
- * @param {queueName , waiting , active , completed , stalledCount , councurrency}
+ * @param {queueName, waiting , active , completed , stalledCount , councurrency}
  * @returns {growthRate , failureRate , avgProcessingMs , zScore , isGhostFailure , statsu , alertMessage}
  * @description {Make Use of Redis For DB Load Decrease}
  */
@@ -187,6 +193,7 @@ async function calculateQueue(rawData:RawDataQueue):Promise<QueueResponse | null
             avgProcessingMs = 0;
         }
         
+        await recordProcessingTime(rawData.queueName , avgProcessingMs)
         const zScore = await getZScore(rawData.queueName , avgProcessingMs)
         // get status filled
         let {status , alertMessage} = getStatus(growthRate , failedRate , isGhostFailure , zScore , rawData.waiting)

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trace Mind</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <div class="logo">Trace Mind</div>
+            <nav class="nav">
+                <a href="#" data-section="overview" class="nav-item active">Overview</a>
+                <a href="#" data-section="jobs" class="nav-item">Jobs</a>
+                <a href="#" data-section="queues" class="nav-item">Queues</a>
+                <a href="#" data-section="system" class="nav-item">System</a>
+                <a href="#" data-section="redis" class="nav-item">Redis</a>
+            </nav>
+            <div class="connection">
+                <span id="wsIndicator" class="dot"></span>
+                <span id="wsStatus">Connecting...</span>
+            </div>
+        </aside>
+
+        <main class="content">
+            <section id="overview" class="section active">
+                <h1>System Overview</h1>
+                
+                <div class="heatmap-grid">
+                    <div class="heatmap-card" id="systemCard">
+                        <div class="card-header">System</div>
+                        <div class="heatmap-value" id="systemHeatmap">--</div>
+                        <div class="card-alert" id="systemAlert"></div>
+                    </div>
+
+                    <div class="heatmap-card" id="queueCard">
+                        <div class="card-header">Queue</div>
+                        <div class="heatmap-value" id="queueHeatmap">--</div>
+                        <div class="card-alert" id="queueAlert"></div>
+                    </div>
+
+                    <div class="heatmap-card" id="redisCard">
+                        <div class="card-header">Redis</div>
+                        <div class="heatmap-value" id="redisHeatmap">--</div>
+                        <div class="card-alert" id="redisAlert"></div>
+                    </div>
+
+                    <div class="heatmap-card" id="jobCard">
+                        <div class="card-header">Jobs</div>
+                        <div class="heatmap-value" id="jobHeatmap">--</div>
+                        <div class="card-alert" id="jobAlert"></div>
+                    </div>
+                </div>
+
+                <div class="analysis-section">
+                    <div class="analysis-box">
+                        <h3>System Analysis</h3>
+                        <div id="systemAnalysis" class="analysis-content"><p class="placeholder">Waiting for data...</p></div>
+                    </div>
+                    <div class="analysis-box">
+                        <h3>Queue Analysis</h3>
+                        <div id="queueAnalysis" class="analysis-content"><p class="placeholder">Waiting for data...</p></div>
+                    </div>
+                    <div class="analysis-box">
+                        <h3>Redis Analysis</h3>
+                        <div id="redisAnalysis" class="analysis-content"><p class="placeholder">Waiting for data...</p></div>
+                    </div>
+                </div>
+
+                <div class="metrics-section">
+                    <h3>Current Metrics</h3>
+                    <div class="metrics-grid">
+                        <div class="metric-box"><div class="metric-label">CPU</div><div class="metric-value" id="metricCPU">--</div></div>
+                        <div class="metric-box"><div class="metric-label">Memory</div><div class="metric-value" id="metricMemory">--</div></div>
+                        <div class="metric-box"><div class="metric-label">Active Jobs</div><div class="metric-value" id="metricActiveJobs">--</div></div>
+                        <div class="metric-box"><div class="metric-label">Queue Wait</div><div class="metric-value" id="metricQueueWait">--</div></div>
+                        <div class="metric-box"><div class="metric-label">Redis Latency</div><div class="metric-value" id="metricRedisLatency">--</div></div>
+                        <div class="metric-box"><div class="metric-label">Failed Jobs</div><div class="metric-value" id="metricFailedJobs">--</div></div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="jobs" class="section">
+                <h1>Job Events</h1>
+                <table id="jobsTable" class="data-table"><thead><tr><th>Job ID</th><th>Queue</th><th>Status</th><th>Time (ms)</th><th>Attempts</th><th>Anomaly</th></tr></thead><tbody id="jobsTableBody"><tr><td colspan="6" class="empty">No data</td></tr></tbody></table>
+            </section>
+
+            <section id="queues" class="section">
+                <h1>Queue Status</h1>
+                <table id="queuesTable" class="data-table"><thead><tr><th>Queue</th><th>Wait</th><th>Active</th><th>Done</th><th>Failed</th><th>Status</th></tr></thead><tbody id="queuesTableBody"><tr><td colspan="6" class="empty">No data</td></tr></tbody></table>
+            </section>
+
+            <section id="system" class="section">
+                <h1>System Metrics</h1>
+                <div class="system-metrics">
+                    <div class="metric-detail">
+                        <div class="metric-title">CPU</div>
+                        <div class="progress-bar"><div id="cpuBar" class="progress"></div></div>
+                        <div id="cpuValue" class="metric-percent">0%</div>
+                    </div>
+                    <div class="metric-detail">
+                        <div class="metric-title">Memory</div>
+                        <div class="progress-bar"><div id="memBar" class="progress"></div></div>
+                        <div id="memValue" class="metric-percent">0%</div>
+                    </div>
+                </div>
+                <div class="system-details" id="systemDetails"><pre>Loading...</pre></div>
+            </section>
+
+            <section id="redis" class="section">
+                <h1>Redis Status</h1>
+                <div class="redis-metrics">
+                    <div class="redis-metric"><span>Latency</span><span id="redisLatency">-- ms</span></div>
+                    <div class="redis-metric"><span>Memory</span><span id="redisMemory">-- %</span></div>
+                    <div class="redis-metric"><span>Clients</span><span id="redisClients">--</span></div>
+                    <div class="redis-metric"><span>Commands/s</span><span id="redisCommands">--</span></div>
+                </div>
+                <table id="redisTable" class="data-table"><thead><tr><th>Latency</th><th>Memory %</th><th>Hit Rate</th><th>Evicted</th><th>Status</th></tr></thead><tbody id="redisTableBody"><tr><td colspan="5" class="empty">No data</td></tr></tbody></table>
+            </section>
+        </main>
+    </div>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="/websocket.js"></script>
+    <script src="/app.js"></script>
+</body>
+</html>

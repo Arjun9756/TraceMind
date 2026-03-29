@@ -13,9 +13,9 @@ interface RawData{
     cpuPercent:number,
     memTotalMB:number,
     memFreeMB:number,
-    loadAvg1m:number,
-    loadAvg5m:number,
-    loadAvg15m:number
+    loadAvg1M:number,
+    loadAvg5M:number,
+    loadAvg15M:number
     coreCount:number,
     processHeapMB:number,
     platform:string,
@@ -27,14 +27,14 @@ interface RawData{
         isHighCpu:boolean,
         isHighMemory:boolean
     },
-    status:'health' | 'warning' | 'critical',
+    status:'healthy' | 'warning' | 'critical',
     alertMessage:string,
 }
 
 function getSystemResult(rawData:RawData):(SystemResponse | null){
     try{
         const isHighCPU = (Number(rawData.cpuPercent) > 80 ? true : false)
-        const memUsedPercent = (Number(rawData.memFreeMB) / Number(rawData.memTotalMB)) * 100
+        const memUsedPercent = ((Number(rawData.memTotalMB) - Number(rawData.memFreeMB)) / Number(rawData.memTotalMB)) * 100
         const isHighMemory = (memUsedPercent > 80 ? true : false)
         let status:SystemResponse['status'] = 'healthy'
 

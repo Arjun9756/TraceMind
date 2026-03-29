@@ -1,8 +1,6 @@
 import express from 'express'
 import path from 'path'
 import dotenv from 'dotenv'
-import http from 'http'
-import os from 'os'
 import connectToMongo from './Database/Mongo.db'
 import queueRoute from './Routes/Queue.route'
 import jobRoute from './Routes/JobEvent.route'
@@ -29,7 +27,7 @@ app.use(express.json())
 app.set('trust proxy' , true)         // Forward Proxy Manage
 
 // Serve static frontend files
-// app.use(express.static(path.join(__dirname, 'public')))
+app.use(express.static(path.join(__dirname, 'frontend')))
 
 app.use('/api/queue' , queueRoute)
 app.use('/api/job' , jobRoute)

@@ -50,7 +50,7 @@ Word Limits:
 - reason: under 20 words
 - action: under 20 words
 
-Response Language: Hinglish (Hindi + English mix)
+Response Language: English
 Output: Pure JSON only, no markdown, no extra fields
 `
 
@@ -125,6 +125,7 @@ Analyze this Redis snapshot and provide actionable insights in Hinglish.
                 .replace(/```/g, '')
                 .trim()
             aiExplanation = JSON.parse(cleaned)
+            console.log(aiExplanation)
         }
         catch (error: any) {
             console.log(`Error in Redis AI Analysis ${error?.message}`)

@@ -4,6 +4,19 @@ import path from 'path'
 import express from 'express'
 
 const app = express()
+
+app.use(express.static(path.join(__dirname, '../frontend')))
+
+// Serve index.html for SPA routing on all unknown routes
+app.use((req, res) => {
+    // If request is for a file with extension, let static middleware handle it
+    if (req.path.includes('.')) {
+        return res.status(404).send('Not found')
+    }
+    // For all other requests, serve index.html
+    res.sendFile(path.join(__dirname, '../frontend/index.html'))
+})
+
 const server = http.createServer(app)
 const io = new Server(server , {
     cors:{

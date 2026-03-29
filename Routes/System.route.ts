@@ -12,9 +12,9 @@ interface SystemRawData {
     cpuPercent: number,
     memTotalMB: number,
     memFreeMB: number,
-    loadAvg1m: number,
-    loadAvg5m: number,
-    loadAvg15m: number
+    loadAvg1M: number,
+    loadAvg5M: number,
+    loadAvg15M: number
     coreCount: number,
     processHeapMB: number,
     platform: string,
@@ -26,7 +26,7 @@ interface SystemRawData {
         isHighCpu: boolean,
         isHighMemory: boolean
     },
-    status: 'health' | 'warning' | 'critical',
+    status: 'healthy' | 'warning' | 'critical',
     alertMessage: string,
 }
 
@@ -71,7 +71,7 @@ Word Limits:
 - reason: under 20 words
 - action: under 20 words
 
-Response Language: Hinglish (Hindi + English mix)
+Response Language: English
 Output: Pure JSON only, no markdown, no extra fields
 `
 
@@ -80,14 +80,14 @@ router.post('/', async (req, res) => {
     try {
         const response = getSystemResult(rawData)
         if (response) {
-            const systemData = await SystemSnapshot.insertOne({
+            const systemData = await SystemSnapshot.create({
                 raw: {
                     cpuPercent: Number(rawData.cpuPercent),
                     memTotalMB: Number(rawData.memTotalMB),
                     memFreeMB: Number(rawData.memFreeMB),
-                    loadAvg1M: Number(rawData.loadAvg1m),
-                    loadAvg5M: Number(rawData.loadAvg5m),
-                    loadAvg15M: Number(rawData.loadAvg15m),
+                    loadAvg1M: Number(rawData.loadAvg1M),
+                    loadAvg5M: Number(rawData.loadAvg5M),
+                    loadAvg15M: Number(rawData.loadAvg15M),
                     processHeapMB: Number(rawData.processHeapMB),
                     coreCount: Number(rawData.coreCount),
                     platform: rawData.platform,
@@ -105,14 +105,14 @@ router.post('/', async (req, res) => {
             })
         }
         else {
-            const systemData = await SystemSnapshot.insertOne({
+            const systemData = await SystemSnapshot.create({
                 raw: {
                     cpuPercent: Number(rawData.cpuPercent),
                     memTotalMB: Number(rawData.memTotalMB),
                     memFreeMB: Number(rawData.memFreeMB),
-                    loadAvg1M: Number(rawData.loadAvg1m),
-                    loadAvg5M: Number(rawData.loadAvg5m),
-                    loadAvg15M: Number(rawData.loadAvg15m),
+                    loadAvg1M: Number(rawData.loadAvg1M),
+                    loadAvg5M: Number(rawData.loadAvg5M),
+                    loadAvg15M: Number(rawData.loadAvg15M),
                     processHeapMB: Number(rawData.processHeapMB),
                     coreCount: Number(rawData.coreCount),
                     platform: rawData.platform,
@@ -140,9 +140,9 @@ RAW SYSTEM DATA:
 - CPU Usage: ${rawData.cpuPercent}%
 - Total Memory: ${rawData.memTotalMB} MB
 - Free Memory: ${rawData.memFreeMB} MB
-- Load Average (1m): ${rawData.loadAvg1m}
-- Load Average (5m): ${rawData.loadAvg5m}
-- Load Average (15m): ${rawData.loadAvg15m}
+- Load Average (1m): ${rawData.loadAvg1M}
+- Load Average (5m): ${rawData.loadAvg5M}
+- Load Average (15m): ${rawData.loadAvg15M}
 - Core Count: ${rawData.coreCount}
 - Process Heap: ${rawData.processHeapMB} MB
 - Platform: ${rawData.platform}
@@ -164,9 +164,9 @@ Analyze this system snapshot and provide actionable insights in Hinglish.
                 cpuPercent: Number(rawData.cpuPercent),
                 memTotalMB: Number(rawData.memTotalMB),
                 memFreeMB: Number(rawData.memFreeMB),
-                loadAvg1M: Number(rawData.loadAvg1m),
-                loadAvg5M: Number(rawData.loadAvg5m),
-                loadAvg15M: Number(rawData.loadAvg15m),
+                loadAvg1M: Number(rawData.loadAvg1M),
+                loadAvg5M: Number(rawData.loadAvg5M),
+                loadAvg15M: Number(rawData.loadAvg15M),
                 processHeapMB: Number(rawData.processHeapMB),
                 coreCount: Number(rawData.coreCount),
                 platform: rawData.platform,
@@ -191,6 +191,7 @@ Analyze this system snapshot and provide actionable insights in Hinglish.
                 .replace(/```/g, '')
                 .trim()
             aiExplanation = JSON.parse(cleaned)
+            console.log(aiExplanation)
         }
         catch (error: any) {
             console.log(`Error While Parsing AI Response ${error?.message}`)

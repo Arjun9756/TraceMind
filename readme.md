@@ -9,13 +9,14 @@ A real-time backend infrastructure monitoring system that detects silent failure
 1. [What is TraceMind?](#what-is-tracemind)
 2. [How It Works](#how-it-works)
 3. [Architecture](#architecture)
-4. [Data Collection](#data-collection)
-5. [Metric Calculations](#metric-calculations)
-6. [Anomaly Detection](#anomaly-detection)
-7. [AI Explanation Engine](#ai-explanation-engine)
-8. [WebSocket — Live Updates](#websocket--live-updates)
-9. [API Reference](#api-reference)
-10. [Database Schema](#database-schema)
+4. [Frontend Dashboard](#frontend-dashboard)
+5. [Data Collection](#data-collection)
+6. [Metric Calculations](#metric-calculations)
+7. [Anomaly Detection](#anomaly-detection)
+8. [AI Explanation Engine](#ai-explanation-engine)
+9. [WebSocket — Live Updates](#websocket--live-updates)
+10. [API Reference](#api-reference)
+11. [Database Schema](#database-schema)
 
 ---
 
@@ -111,6 +112,123 @@ src/
     Groq.config.ts             ← Groq client setup
     DB.ts                      ← MongoDB connection
 ```
+
+---
+
+## Frontend Dashboard
+
+TraceMind includes a professional, real-time monitoring dashboard built with modern web technologies.
+
+### Features
+
+- **Real-time Updates**: WebSocket-powered live data streaming
+- **Interactive Charts**: Queue, Redis, and System metrics visualization using Chart.js
+- **AI Analysis Display**: Live AI-generated insights with severity badges
+- **CPU Heatmap**: Visual representation of CPU activity over time
+- **Alert System**: Real-time alerts with severity levels
+- **Responsive Design**: Works on desktop, tablet, and mobile
+- **Dark Theme**: Professional dark mode optimized for monitoring
+
+### Dashboard Sections
+
+#### 1. Queue Monitor
+- Live metrics: Waiting, Active, Completed, Failed jobs
+- Real-time line chart showing queue trends
+- AI analysis with actionable insights
+- Color-coded status indicators
+
+#### 2. System Monitor
+- CPU and Memory usage with progress bars
+- Load average and uptime tracking
+- Real-time CPU/Memory trend chart
+- CPU activity heatmap (last 100 readings)
+- AI-powered system health analysis
+
+#### 3. Redis Monitor
+- Latency tracking
+- Memory usage with visual indicators
+- Cache hit rate monitoring
+- Connected clients count
+- Dual-axis chart (Latency vs Hit Rate)
+- AI recommendations for cache optimization
+
+#### 4. Alerts Section
+- Real-time alert feed
+- Severity-based color coding (Warning, Critical)
+- Timestamp tracking
+- Auto-cleanup (keeps last 10 alerts)
+
+### Tech Stack
+
+| Technology | Purpose |
+|---|---|
+| HTML5 | Structure |
+| CSS3 | Modern styling with gradients, animations, glassmorphism |
+| JavaScript (ES6+) | Client-side logic |
+| Socket.IO Client | Real-time WebSocket connection |
+| Chart.js | Interactive data visualization |
+| Google Fonts (Inter) | Professional typography |
+
+### Color Scheme
+
+```css
+Primary Background:   #0f172a (Slate 900)
+Secondary Background: #1e293b (Slate 800)
+Card Background:      #334155 (Slate 700)
+Accent Cyan:          #06b6d4
+Accent Blue:          #0ea5e9
+Accent Purple:        #a855f7
+Accent Green:         #22c55e (Healthy)
+Accent Yellow:        #eab308 (Warning)
+Accent Red:           #ef4444 (Critical)
+```
+
+### Running the Dashboard
+
+1. Start the TraceMind server:
+```bash
+npm run dev
+```
+
+2. Open browser and navigate to:
+```
+http://localhost:3000
+```
+
+3. The dashboard will automatically connect to the WebSocket server and start receiving live updates.
+
+### Dashboard Features in Detail
+
+#### Real-time Metrics
+- Updates every 5 seconds (queue/redis)
+- Updates every 30 seconds (system)
+- Smooth animations and transitions
+- No page refresh needed
+
+#### Interactive Charts
+- Hover to see exact values
+- Auto-scaling Y-axis
+- Last 20 data points visible
+- Smooth line interpolation
+- Dual Y-axis for multi-metric charts
+
+#### AI Analysis Cards
+- Severity badges (Low, Medium, High, Critical)
+- Animated glow effects for critical alerts
+- Emoji indicators for quick scanning
+- Actionable recommendations
+- Real-time updates
+
+#### Export Functionality
+- Export all metrics to JSON
+- Includes historical data
+- Timestamp-based filenames
+- One-click download
+
+#### Fullscreen Mode
+- Distraction-free monitoring
+- Perfect for NOC displays
+- Keyboard shortcut support
 
 ---
 

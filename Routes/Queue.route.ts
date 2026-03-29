@@ -45,7 +45,7 @@ Word Limits:
 - reason: under 20 words
 - action: under 20 words
 
-Response Language: Hinglish (Hindi + English mix)
+Response Language: English
 Output: Pure JSON only, no markdown, no extra fields
 `
 
