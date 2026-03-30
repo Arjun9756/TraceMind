@@ -13,7 +13,7 @@ export interface IJobEvent {
         zScore: number,
         avgAtTime: number
     },
-    timestamp:Date
+    capturedAt:Date
 }
 
 const JobEventSchema = new Schema<IJobEvent>({
@@ -36,14 +36,14 @@ const JobEventSchema = new Schema<IJobEvent>({
         zScore: { type: Number, default: 0 },
         avgAtTime: { type: Number, default: 0 },
     },
-    timestamp:{type:Date , default:Date.now()}
+    capturedAt:{type:Date , default:Date.now()}
 }, { timestamps: false })
 
-JobEventSchema.index({queueName:1 , timestamp:-1})
+JobEventSchema.index({queueName:1 , capturedAt:-1})
 JobEventSchema.index({queueName:1 , "calculated.isRetryStorm":1})
 JobEventSchema.index({ queueName: 1, 'calculated.isAnomaly': 1 })
 JobEventSchema.index(
-  { timestamp: 1 },
+  { capturedAt: 1 },
   { expireAfterSeconds: 864000 } // 10 din
 )
 

@@ -19,7 +19,7 @@ export interface IQueueSnapshot extends Document{
     },
     status:'healthy' | 'warning' | 'critical' | 'ghostFailure',
     alertMessage:String,
-    captureAt:Date
+    capturedAt:Date
 }
 
 const QueueSnapshotSchema = new Schema<IQueueSnapshot>({
@@ -49,10 +49,10 @@ const QueueSnapshotSchema = new Schema<IQueueSnapshot>({
         require:true
     },
     alertMessage:String,
-    captureAt:{type:Date , default:Date.now()}
+    capturedAt:{type:Date , default:Date.now()}
 },{timestamps:false})
 
-QueueSnapshotSchema.index({queueName:1 , captureAt:-1})
-QueueSnapshotSchema.index({captureAt:-1} , {expireAfterSeconds:864000}) // 10 days 60 * 60 * 24 * 10
+QueueSnapshotSchema.index({queueName:1 , capturedAt:-1})
+QueueSnapshotSchema.index({capturedAt:-1} , {expireAfterSeconds:864000}) // 10 days 60 * 60 * 24 * 10
 
 export const QueueSnapshot = mongoose.model<IQueueSnapshot>('QueueSnapshot' , QueueSnapshotSchema)

@@ -10,6 +10,14 @@ let currentData = {
     redisAnalysis: null
 };
 
+// Pagination state
+let paginationState = {
+    system: { cursor: null, hasMore: false },
+    queue: { cursor: null, hasMore: false },
+    redis: { cursor: null, hasMore: false },
+    jobs: { cursor: null, hasMore: false }
+};
+
 function initWebSocket() {
     try {
         socket = io('http://localhost:5500', {
@@ -66,6 +74,20 @@ function initWebSocket() {
             updateHeatmaps();
         });
 
+        socket.on('jobSnapshot', (data) => {
+            console.log('Job snapshot received');
+            if (!currentData.jobs) currentData.jobs = [];
+            currentData.jobs.unshift(data); // Add to beginning
+            if (currentData.jobs.length > 5) currentData.jobs.pop(); // Keep last 5
+            updateUI('jobs', data);
+        });
+
+        socket.on('groqJobAnalyse', (data) => {
+            console.log('Job analysis received');
+            currentData.jobAnalysis = data;
+            updateUI('jobs', data);
+        });
+
         socket.on('disconnect', () => {
             console.log('Socket disconnected');
             updateConnectionStatus(false);
@@ -85,7 +107,10 @@ function updateUI(type, data) {
     if (type === 'system') {
         const cpu = Math.round(data.raw.cpuPercent || 0);
         const mem = Math.round(data.calculated.memUsedPercent || 0);
+        const isHighCPU = data.calculated.isHighCPU;
+        const isHighMem = data.calculated.isHighMemory;
         
+        // Update live metrics only (not history table)
         document.getElementById('systemHeatmap').textContent = cpu + '%';
         document.getElementById('metricCPU').textContent = cpu + '%';
         document.getElementById('metricMemory').textContent = mem + '%';
@@ -93,6 +118,14 @@ function updateUI(type, data) {
         document.getElementById('memBar').style.width = mem + '%';
         document.getElementById('cpuValue').textContent = cpu + '%';
         document.getElementById('memValue').textContent = mem + '%';
+        
+        // Add live status box
+        const liveStatus = document.getElementById('systemLiveStatus');
+        if (liveStatus) {
+            const alertClass = isHighCPU || isHighMem ? 'alert-danger' : 'alert-success';
+            const alertText = isHighCPU ? 'HIGH CPU' : isHighMem ? 'HIGH MEMORY' : 'Healthy';
+            liveStatus.innerHTML = `<span class="${alertClass}">${alertText}</span>`;
+        }
         
         // System details
         const details = `CPU: ${cpu}% (${data.raw.coreCount} cores)
@@ -106,38 +139,37 @@ Platform: ${data.raw.platform}`;
         const active = Math.round(data.raw.active || 0);
         const failed = Math.round(data.raw.failed || 0);
         
+        // Update live metrics only
         document.getElementById('queueHeatmap').textContent = waiting;
         document.getElementById('metricQueueWait').textContent = waiting;
         document.getElementById('metricFailedJobs').textContent = failed;
+        document.getElementById('metricActiveJobs').textContent = active;
         
-        // Add to queue table
-        const tbody = document.getElementById('queuesTableBody');
-        if (tbody.rows.length > 0) {
-            const row = tbody.rows[0];
-            if (row.cells[0].textContent === 'No data') {
-                tbody.innerHTML = '';
-            }
+        // Add live queue status
+        const liveStatus = document.getElementById('queueLiveStatus');
+        if (liveStatus) {
+            const alertClass = failed > 0 ? 'alert-danger' : waiting > 100 ? 'alert-warning' : 'alert-success';
+            const alertText = failed > 0 ? 'FAILED JOBS' : waiting > 100 ? 'HIGH QUEUE' : 'Healthy';
+            liveStatus.innerHTML = `<span class="${alertClass}">${alertText}</span>`;
         }
         
-        const newRow = tbody.insertRow(0);
-        newRow.innerHTML = `
-            <td>${data.queueName || 'Queue'}</td>
-            <td>${waiting}</td>
-            <td>${active}</td>
-            <td>${data.raw.completed || 0}</td>
-            <td>${failed}</td>
-            <td><span class="status-${data.status}">${data.status}</span></td>
-        `;
-        
-        // Keep only latest 5
-        while (tbody.rows.length > 5) {
-            tbody.deleteRow(tbody.rows.length - 1);
+        // Live queue info
+        const queueInfo = document.getElementById('queueLiveInfo');
+        if (queueInfo) {
+            queueInfo.innerHTML = `
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; font-size: 13px;">
+                    <div><span style="color: var(--text-secondary);">Waiting:</span> <span style="font-weight: bold;">${waiting}</span></div>
+                    <div><span style="color: var(--text-secondary);">Active:</span> <span style="font-weight: bold;">${active}</span></div>
+                    <div><span style="color: var(--text-secondary);">Failed:</span> <span style="font-weight: bold;">${failed}</span></div>
+                </div>
+            `;
         }
     } else if (type === 'redis') {
         const latency = Math.round(data.raw.latencyMs || 0);
         const memPercent = Math.round((data.raw.memUsedMB / data.raw.memMaxMB) * 100);
         const hitRate = Math.round(data.calculated?.hitRate || 0);
         
+        // Update live metrics only
         document.getElementById('redisHeatmap').textContent = latency + 'ms';
         document.getElementById('metricRedisLatency').textContent = latency + 'ms';
         document.getElementById('redisLatency').textContent = latency + ' ms';
@@ -145,26 +177,23 @@ Platform: ${data.raw.platform}`;
         document.getElementById('redisClients').textContent = data.raw.connectedClients;
         document.getElementById('redisCommands').textContent = data.raw.commandPerSec;
         
-        // Add to redis table
-        const tbody = document.getElementById('redisTableBody');
-        if (tbody.rows.length > 0) {
-            const row = tbody.rows[0];
-            if (row.cells[0].textContent === 'No data') {
-                tbody.innerHTML = '';
-            }
+        // Add live redis status
+        const liveStatus = document.getElementById('redisLiveStatus');
+        if (liveStatus) {
+            const alertClass = latency > 100 ? 'alert-danger' : latency > 50 ? 'alert-warning' : 'alert-success';
+            const alertText = latency > 100 ? 'HIGH LATENCY' : latency > 50 ? 'SLOW' : 'Healthy';
+            liveStatus.innerHTML = `<span class="${alertClass}">${alertText}</span>`;
         }
+    } else if (type === 'jobs') {
+        const isAnomaly = data.isAnomaly || false;
+        const status = data.status || 'unknown';
         
-        const newRow = tbody.insertRow(0);
-        newRow.innerHTML = `
-            <td>${latency}</td>
-            <td>${memPercent}%</td>
-            <td>${hitRate}%</td>
-            <td>${data.raw.evictedKeys}</td>
-            <td><span class="status-${data.status}">${data.status}</span></td>
-        `;
-        
-        while (tbody.rows.length > 5) {
-            tbody.deleteRow(tbody.rows.length - 1);
+        // Update live jobs status
+        const liveStatus = document.getElementById('jobsLiveStatus');
+        if (liveStatus) {
+            const alertClass = isAnomaly ? 'alert-danger' : status === 'failed' ? 'alert-warning' : 'alert-success';
+            const alertText = isAnomaly ? 'ANOMALY' : status === 'failed' ? 'FAILED JOB' : 'Running';
+            liveStatus.innerHTML = `<span class="${alertClass}">${alertText}</span>`;
         }
     }
 }
@@ -253,8 +282,204 @@ function updateConnectionStatus(connected) {
     }
 }
 
+// Pagination functions
+async function fetchNextPage(type) {
+    const cursor = paginationState[type].cursor;
+    
+    try {
+        let endpoint = '';
+        let tableBodyId = '';
+        let pageInfoId = '';
+        let parseFunction = null;
+        let buttonId = '';
+        
+        if (type === 'system') {
+            endpoint = 'http://localhost:3000/api/system/result';
+            tableBodyId = 'systemHistoryBody';
+            pageInfoId = 'systemPageInfo';
+            buttonId = 'systemNextBtn';
+            parseFunction = parseSystemRow;
+        } else if (type === 'queue') {
+            endpoint = 'http://localhost:3000/api/queue/result';
+            tableBodyId = 'queueHistoryBody';
+            pageInfoId = 'queuePageInfo';
+            buttonId = 'queuesNextBtn';
+            parseFunction = parseQueueRow;
+        } else if (type === 'redis') {
+            endpoint = 'http://localhost:3000/api/redis/result';
+            tableBodyId = 'redisHistoryBody';
+            pageInfoId = 'redisPageInfo';
+            buttonId = 'redisNextBtn';
+            parseFunction = parseRedisRow;
+        } else if (type === 'jobs') {
+            endpoint = 'http://localhost:3000/api/job/result';
+            tableBodyId = 'jobsHistoryBody';
+            pageInfoId = 'jobsPageInfo';
+            buttonId = 'jobsNextBtn';
+            parseFunction = parseJobRow;
+        }
+        
+        // Get elements
+        const tbody = document.getElementById(tableBodyId);
+        const nextBtn = document.getElementById(buttonId);
+        const pageInfo = document.getElementById(pageInfoId);
+        
+        if (!tbody) {
+            console.error(`Table body not found: ${tableBodyId}`);
+            return;
+        }
+        
+        // Build query
+        const params = new URLSearchParams();
+        if (cursor) params.append('cursorId', cursor);
+        
+        const url = `${endpoint}?${params.toString()}`;
+        console.log(`🔄 Fetching ${type} pagination:`, url);
+        
+        const response = await fetch(url);
+        if (!response.ok) {
+            console.error(`API error for ${type}:`, response.status);
+            if (pageInfo) pageInfo.textContent = 'Error loading data';
+            if (nextBtn) nextBtn.disabled = true;
+            return;
+        }
+        
+        const apiData = await response.json();
+        console.log(`✅ Response for ${type}:`, apiData);
+        
+        if (!apiData.status) {
+            console.warn(`API returned status=false for ${type}`);
+            if (pageInfo) pageInfo.textContent = 'No data available';
+            if (nextBtn) nextBtn.disabled = true;
+            return;
+        }
+        
+        if (!apiData.data || apiData.data.length === 0) {
+            console.warn(`No data returned for ${type}`);
+            if (pageInfo) pageInfo.textContent = 'No more records';
+            if (nextBtn) nextBtn.disabled = true;
+            return;
+        }
+        
+        // Clear "No data" row if exists
+        if (tbody.rows.length === 1) {
+            const firstRow = tbody.rows[0];
+            if (firstRow.textContent.includes('No data') || firstRow.getAttribute('class')?.includes('empty')) {
+                tbody.innerHTML = '';
+            }
+        }
+        
+        // Add new rows
+        console.log(`Adding ${apiData.data.length} rows to ${tableBodyId}`);
+        apiData.data.forEach(record => {
+            const newRow = tbody.insertRow();
+            try {
+                parseFunction(newRow, record);
+            } catch (e) {
+                console.error(`Error parsing row for ${type}:`, e);
+            }
+        });
+        
+        // Keep max 20 rows visible
+        while (tbody.rows.length > 20) {
+            tbody.deleteRow(0);
+        }
+        
+        // Update pagination state for NEXT call
+        paginationState[type].cursor = apiData.nextCursor || null;
+        paginationState[type].hasMore = apiData.hasMore === true;
+        
+        console.log(`📊 Updated pagination state for ${type}:`, paginationState[type]);
+        
+        // Update UI
+        if (nextBtn) {
+            if (apiData.hasMore === true) {
+                nextBtn.disabled = false;
+            } else {
+                nextBtn.disabled = true;
+            }
+        }
+        
+        if (pageInfo) {
+            if (apiData.hasMore === true) {
+                pageInfo.textContent = `Loaded: ${tbody.rows.length} records | Click Next for more`;
+            } else {
+                pageInfo.textContent = `Loaded: ${tbody.rows.length} records | No more data`;
+            }
+        }
+        
+    } catch (error) {
+        console.error('🚨 Error fetching next page for', type, ':', error);
+        const pageInfo = document.getElementById(pageInfoId || (type + 'PageInfo'));
+        if (pageInfo) pageInfo.textContent = 'Error: ' + error.message;
+    }
+}
+
+function parseSystemRow(row, record) {
+    const cpu = Math.round(record.raw?.cpuPercent || 0);
+    const mem = Math.round(record.calculated?.memUsedPercent || 0);
+    
+    row.innerHTML = `
+        <td>${new Date(record.capturedAt).toLocaleString()}</td>
+        <td>${cpu}%</td>
+        <td>${mem}%</td>
+        <td><span class="status-${record.status}">${record.status}</span></td>
+    `;
+}
+
+function parseQueueRow(row, record) {
+    const waiting = Math.round(record.raw?.waiting || 0);
+    const active = Math.round(record.raw?.active || 0);
+    const completed = Math.round(record.raw?.completed || 0);
+    const failed = Math.round(record.raw?.failed || 0);
+    
+    row.innerHTML = `
+        <td>${record.queueName || 'Queue'}</td>
+        <td>${waiting}</td>
+        <td>${active}</td>
+        <td>${completed}</td>
+        <td>${failed}</td>
+        <td><span class="status-${record.status}">${record.status}</span></td>
+    `;
+}
+
+function parseRedisRow(row, record) {
+    const latency = Math.round(record.raw?.latencyMs || 0);
+    const memPercent = Math.round((record.raw?.memUsedMB / record.raw?.memMaxMB) * 100) || 0;
+    const hitRate = Math.round(record.calculated?.hitRate || 0);
+    
+    row.innerHTML = `
+        <td>${latency}</td>
+        <td>${memPercent}%</td>
+        <td>${hitRate}%</td>
+        <td>${record.raw?.evictedKeys || 0}</td>
+        <td><span class="status-${record.status}">${record.status}</span></td>
+    `;
+}
+
+function parseJobRow(row, record) {
+    const jobId = record.jobId?.substring(0, 8) || '--';
+    const status = record.status || 'unknown';
+    const attempts = record.attemptsMade || 0;
+    const anomaly = record.isAnomaly ? 'Yes' : 'No';
+    
+    row.innerHTML = `
+        <td>${jobId}</td>
+        <td>${record.queueName || '--'}</td>
+        <td><span class="status-${status}">${status}</span></td>
+        <td>${Math.round(record.processingTimeMs || 0)}</td>
+        <td>${attempts}</td>
+        <td>${anomaly}</td>
+    `;
+}
+
 // Navigation
 document.addEventListener('DOMContentLoaded', () => {
+    // Show diagnostic info
+    console.log('=== Trace Mind Dashboard Loaded ===');
+    console.log('Pagination State:', paginationState);
+    console.log('Current Data:', currentData);
+    
     document.querySelectorAll('.nav-item').forEach(link => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
@@ -265,8 +490,16 @@ document.addEventListener('DOMContentLoaded', () => {
             
             document.getElementById(section).classList.add('active');
             link.classList.add('active');
+            
+            console.log(`📌 Switched to section: ${section}`);
         });
     });
     
+    // Initialize WebSocket
     initWebSocket();
+    
+    // Periodic diagnostic
+    setInterval(() => {
+        console.log(`📊 Current State - System: ${currentData.system ? '✓' : '✗'}, Queue: ${currentData.queue?.queueName ? '✓' : '✗'}, Redis: ${currentData.redis ? '✓' : '✗'}`);
+    }, 15000);
 });

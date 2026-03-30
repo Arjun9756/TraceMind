@@ -116,7 +116,7 @@ router.post("/", async (req: Request, res: Response) => {
                 alertMessage
             })
 
-            io.emit('groqQueueAnalyse' , aiExplanation)
+            io.emit('groqQueueAnalyse', aiExplanation)
             console.log(`AI Explain ${cleaned}`)
         }
         catch (error: any) {
@@ -128,7 +128,7 @@ router.post("/", async (req: Request, res: Response) => {
                 isAnomaly: true,
             }
 
-            io.emit('groqQueueAnalyse' , aiExplanation)
+            io.emit('groqQueueAnalyse', aiExplanation)
             io.emit('queueSnapshot', {
                 queueName: rawData.queueName,
                 raw: {
@@ -171,6 +171,44 @@ router.post("/", async (req: Request, res: Response) => {
         return res.status(501).json({
             status: false,
             message: "Trace Mind Server is Down"
+        })
+    }
+})
+
+router.get('/result', async (req, res) => {
+    let { cursorId } = req.query
+    try {
+        let query: any = {}
+        
+        if (cursorId && cursorId !== 'null') {
+            query.capturedAt = { $lt: new Date(cursorId as string) }
+        }
+        
+        let queueResult = await QueueSnapshot
+            .find(query)
+            .sort({ capturedAt: -1 })
+            .limit(5)
+
+        let newCursorId = null
+        
+        if (queueResult.length > 0) {
+            newCursorId = queueResult[queueResult.length - 1]!.capturedAt
+        }
+
+        return res.status(200).json({
+            status: true,
+            data: queueResult,
+            nextCursor: newCursorId,
+            hasMore: queueResult.length === 5
+        })
+    }
+    catch (error: any) {
+        console.log('Error fetching queue results:', error.message)
+        return res.status(200).json({
+            status: false,
+            data: [],
+            nextCursor: null,
+            hasMore: false
         })
     }
 })

@@ -83,16 +83,52 @@
 
             <section id="jobs" class="section">
                 <h1>Job Events</h1>
-                <table id="jobsTable" class="data-table"><thead><tr><th>Job ID</th><th>Queue</th><th>Status</th><th>Time (ms)</th><th>Attempts</th><th>Anomaly</th></tr></thead><tbody id="jobsTableBody"><tr><td colspan="6" class="empty">No data</td></tr></tbody></table>
+                
+                <div class="live-data-box">
+                    <div id="jobsLiveStatus" style="display: inline-block;">
+                        <span class="alert-success">No data yet</span>
+                    </div>
+                </div>
+                
+                <h3 style="margin-top: 20px;">Historical Data</h3>
+                <table id="jobsTable" class="data-table"><thead><tr><th>Job ID</th><th>Queue</th><th>Status</th><th>Time (ms)</th><th>Attempts</th><th>Anomaly</th></tr></thead><tbody id="jobsHistoryBody"><tr><td colspan="6" class="empty">No data</td></tr></tbody></table>
+                <div class="pagination-controls">
+                    <button id="jobsNextBtn" class="btn-next" onclick="fetchNextPage('jobs')">Next</button>
+                    <span id="jobsPageInfo" class="page-info"></span>
+                </div>
             </section>
 
             <section id="queues" class="section">
                 <h1>Queue Status</h1>
-                <table id="queuesTable" class="data-table"><thead><tr><th>Queue</th><th>Wait</th><th>Active</th><th>Done</th><th>Failed</th><th>Status</th></tr></thead><tbody id="queuesTableBody"><tr><td colspan="6" class="empty">No data</td></tr></tbody></table>
+                
+                <div class="live-data-box">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div id="queueLiveStatus" style="display: inline-block;">
+                                <span class="alert-success">Healthy</span>
+                            </div>
+                        </div>
+                        <div id="queueLiveInfo" style="text-align: right;"></div>
+                    </div>
+                </div>
+                
+                <h3 style="margin-top: 20px;">Historical Data</h3>
+                <table id="queuesTable" class="data-table"><thead><tr><th>Queue</th><th>Wait</th><th>Active</th><th>Done</th><th>Failed</th><th>Status</th></tr></thead><tbody id="queueHistoryBody"><tr><td colspan="6" class="empty">No data</td></tr></tbody></table>
+                <div class="pagination-controls">
+                    <button id="queuesNextBtn" class="btn-next" onclick="fetchNextPage('queue')">Next</button>
+                    <span id="queuePageInfo" class="page-info"></span>
+                </div>
             </section>
 
             <section id="system" class="section">
                 <h1>System Metrics</h1>
+                
+                <div class="live-data-box">
+                    <div id="systemLiveStatus" style="display: inline-block;">
+                        <span class="alert-success">Healthy</span>
+                    </div>
+                </div>
+                
                 <div class="system-metrics">
                     <div class="metric-detail">
                         <div class="metric-title">CPU</div>
@@ -106,17 +142,36 @@
                     </div>
                 </div>
                 <div class="system-details" id="systemDetails"><pre>Loading...</pre></div>
+                <h3 style="margin-top: 30px; margin-bottom: 15px;">Historical Data</h3>
+                <table id="systemTable" class="data-table"><thead><tr><th>Time</th><th>CPU</th><th>Memory</th><th>Status</th></tr></thead><tbody id="systemHistoryBody"><tr><td colspan="4" class="empty">No data</td></tr></tbody></table>
+                <div class="pagination-controls">
+                    <button id="systemNextBtn" class="btn-next" onclick="fetchNextPage('system')">Next</button>
+                    <span id="systemPageInfo" class="page-info"></span>
+                </div>
             </section>
 
             <section id="redis" class="section">
                 <h1>Redis Status</h1>
+                
+                <div class="live-data-box">
+                    <div id="redisLiveStatus" style="display: inline-block;">
+                        <span class="alert-success">Healthy</span>
+                    </div>
+                </div>
+                
                 <div class="redis-metrics">
                     <div class="redis-metric"><span>Latency</span><span id="redisLatency">-- ms</span></div>
                     <div class="redis-metric"><span>Memory</span><span id="redisMemory">-- %</span></div>
                     <div class="redis-metric"><span>Clients</span><span id="redisClients">--</span></div>
                     <div class="redis-metric"><span>Commands/s</span><span id="redisCommands">--</span></div>
                 </div>
-                <table id="redisTable" class="data-table"><thead><tr><th>Latency</th><th>Memory %</th><th>Hit Rate</th><th>Evicted</th><th>Status</th></tr></thead><tbody id="redisTableBody"><tr><td colspan="5" class="empty">No data</td></tr></tbody></table>
+                
+                <h3 style="margin-top: 20px;">Historical Data</h3>
+                <table id="redisTable" class="data-table"><thead><tr><th>Latency</th><th>Memory %</th><th>Hit Rate</th><th>Evicted</th><th>Status</th></tr></thead><tbody id="redisHistoryBody"><tr><td colspan="5" class="empty">No data</td></tr></tbody></table>
+                <div class="pagination-controls">
+                    <button id="redisNextBtn" class="btn-next" onclick="fetchNextPage('redis')">Next</button>
+                    <span id="redisPageInfo" class="page-info"></span>
+                </div>
             </section>
         </main>
     </div>

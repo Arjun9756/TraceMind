@@ -18,7 +18,7 @@ export interface IRedisSnapshot {
         isLowHitRate:boolean// hitRate < 60
     },
     alertMessage: string,
-    captureAt: Date,
+    capturedAt: Date,
     status: 'healthy' | 'warning' | 'critical'
 }
 
@@ -48,11 +48,11 @@ const RedisSnapshotSchema = new Schema<IRedisSnapshot>({
         default: 'healthy'
     },
     alertMessage: { type: String },
-    captureAt: { type: Date, default: Date.now },
+    capturedAt: { type: Date, default: Date.now },
 }, { timestamps: false })
 
 RedisSnapshotSchema.index(
-    { captureAt: 1 },
+    { capturedAt: 1 },
     { expireAfterSeconds: 864000 }
 )
 

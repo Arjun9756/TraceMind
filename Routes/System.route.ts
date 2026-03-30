@@ -215,4 +215,42 @@ Analyze this system snapshot and provide actionable insights in Hinglish.
     }
 })
 
+router.get('/result', async (req, res) => {
+    let { cursorId } = req.query
+    try {
+        let query: any = {}
+        
+        if (cursorId && cursorId !== 'null') {
+            query.capturedAt = { $lt: new Date(cursorId as string) }
+        }
+        
+        let systemResult = await SystemSnapshot
+            .find(query)
+            .sort({ capturedAt: -1 })
+            .limit(5)
+
+        let newCursorId = null
+        
+        if (systemResult.length > 0) {
+            newCursorId = systemResult[systemResult.length - 1]!.capturedAt
+        }
+
+        return res.status(200).json({
+            status: true,
+            data: systemResult,
+            nextCursor: newCursorId,
+            hasMore: systemResult.length === 5
+        })
+    }
+    catch (error: any) {
+        console.log('Error fetching system results:', error.message)
+        return res.status(200).json({
+            status: false,
+            data: [],
+            nextCursor: null,
+            hasMore: false
+        })
+    }
+})
+
 export default router
