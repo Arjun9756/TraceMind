@@ -46,8 +46,22 @@ async function flushBuffer() {
             systemDocs.length > 0 ? SystemSnapshot.insertMany(systemDocs) : null,
             jobDocs.length > 0 ? JobEvent.insertMany(jobDocs) : null,
         ])
+
+        console.log(`Bulk inserted ${batch.length} documents`)
     }
     catch (error: any) {
         console.log(`Error in Insertion ${error?.message}`)
     }
 }
+
+const timeout = setInterval(async()=>{
+    console.log(`Batch Processing in Background`)
+    if(buffer.length > 0){
+        await flushBuffer()
+    }
+},10000) // 10 seconds
+
+process.on('SIGINT' , (sign)=>{
+    clearInterval(timeout)
+    console.log("Safe Cleanup Service Executed")
+})
