@@ -4,6 +4,7 @@ import getSystemResult from '../BusinessLogic/System.logic'
 import { SystemSnapshot } from '../Models/SystemSnapshot.model'
 import { getIO } from '../Websocket/Websocket'
 import generateChat from '../Utility/Groq.AI'
+import { addToBuffer } from '../Utility/BulkBuffer'
 
 const router = express.Router()
 const io = getIO()
@@ -80,53 +81,59 @@ router.post('/', async (req, res) => {
     try {
         const response = getSystemResult(rawData)
         if (response) {
-            const systemData = await SystemSnapshot.create({
-                raw: {
-                    cpuPercent: Number(rawData.cpuPercent),
-                    memTotalMB: Number(rawData.memTotalMB),
-                    memFreeMB: Number(rawData.memFreeMB),
-                    loadAvg1M: Number(rawData.loadAvg1M),
-                    loadAvg5M: Number(rawData.loadAvg5M),
-                    loadAvg15M: Number(rawData.loadAvg15M),
-                    processHeapMB: Number(rawData.processHeapMB),
-                    coreCount: Number(rawData.coreCount),
-                    platform: rawData.platform,
-                    uptime: Number(rawData.uptime),
-                    processUptime: Number(rawData.processUptime),
-                },
-                calculated: {
-                    memUsedMB: response.calculated.memUsedMB,
-                    isHighCPU: response.calculated.isHighCPU,
-                    isHighMemory: response.calculated.isHighMemory,
-                    memUsedPercent: response.calculated.memUsedPercent
-                },
-                status: response.status,
-                alertMessage: response.alertMessage
+            addToBuffer({
+                type: "system",
+                data: {
+                    raw: {
+                        cpuPercent: Number(rawData.cpuPercent),
+                        memTotalMB: Number(rawData.memTotalMB),
+                        memFreeMB: Number(rawData.memFreeMB),
+                        loadAvg1M: Number(rawData.loadAvg1M),
+                        loadAvg5M: Number(rawData.loadAvg5M),
+                        loadAvg15M: Number(rawData.loadAvg15M),
+                        processHeapMB: Number(rawData.processHeapMB),
+                        coreCount: Number(rawData.coreCount),
+                        platform: rawData.platform,
+                        uptime: Number(rawData.uptime),
+                        processUptime: Number(rawData.processUptime),
+                    },
+                    calculated: {
+                        memUsedMB: response.calculated.memUsedMB,
+                        isHighCPU: response.calculated.isHighCPU,
+                        isHighMemory: response.calculated.isHighMemory,
+                        memUsedPercent: response.calculated.memUsedPercent
+                    },
+                    status: response.status,
+                    alertMessage: response.alertMessage
+                }
             })
         }
         else {
-            const systemData = await SystemSnapshot.create({
-                raw: {
-                    cpuPercent: Number(rawData.cpuPercent),
-                    memTotalMB: Number(rawData.memTotalMB),
-                    memFreeMB: Number(rawData.memFreeMB),
-                    loadAvg1M: Number(rawData.loadAvg1M),
-                    loadAvg5M: Number(rawData.loadAvg5M),
-                    loadAvg15M: Number(rawData.loadAvg15M),
-                    processHeapMB: Number(rawData.processHeapMB),
-                    coreCount: Number(rawData.coreCount),
-                    platform: rawData.platform,
-                    uptime: Number(rawData.uptime),
-                    processUptime: Number(rawData.processUptime),
-                },
-                calculated: {
-                    memUsedMB: 0,
-                    isHighCPU: false,
-                    isHighMemory: false,
-                    memUsedPercent: 0
-                },
-                status: "healthy",
-                alertMessage: "No Data is Processed With This Query"
+            addToBuffer({
+                type: "system",
+                data: {
+                    raw: {
+                        cpuPercent: Number(rawData.cpuPercent),
+                        memTotalMB: Number(rawData.memTotalMB),
+                        memFreeMB: Number(rawData.memFreeMB),
+                        loadAvg1M: Number(rawData.loadAvg1M),
+                        loadAvg5M: Number(rawData.loadAvg5M),
+                        loadAvg15M: Number(rawData.loadAvg15M),
+                        processHeapMB: Number(rawData.processHeapMB),
+                        coreCount: Number(rawData.coreCount),
+                        platform: rawData.platform,
+                        uptime: Number(rawData.uptime),
+                        processUptime: Number(rawData.processUptime),
+                    },
+                    calculated: {
+                        memUsedMB: 0,
+                        isHighCPU: false,
+                        isHighMemory: false,
+                        memUsedPercent: 0
+                    },
+                    status: "healthy",
+                    alertMessage: "No Data is Processed With This Query"
+                }
             })
         }
 
@@ -204,7 +211,10 @@ Analyze this system snapshot and provide actionable insights in Hinglish.
             }
         }
 
-        io.emit("groqSystemAnalyse", aiExplanation)
+        if(response && response.calculated.isHighCPU || response.calculated.isHighMemory){
+            io.emit("groqSystemAnalyse", aiExplanation)
+        }
+
         return res.status(202).json({
             status: true,
             message: "System Data is Recevied"
@@ -219,18 +229,18 @@ router.get('/result', async (req, res) => {
     let { cursorId } = req.query
     try {
         let query: any = {}
-        
+
         if (cursorId && cursorId !== 'null') {
             query.capturedAt = { $lt: new Date(cursorId as string) }
         }
-        
+
         let systemResult = await SystemSnapshot
             .find(query)
             .sort({ capturedAt: -1 })
             .limit(5)
 
         let newCursorId = null
-        
+
         if (systemResult.length > 0) {
             newCursorId = systemResult[systemResult.length - 1]!.capturedAt
         }

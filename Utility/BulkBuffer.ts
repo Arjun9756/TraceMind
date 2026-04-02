@@ -26,19 +26,19 @@ async function flushBuffer() {
         const batch = buffer.splice(0, buffer.length)
         const queueDocs = batch.filter((item) => {
             return item.type === 'queue'
-        })
+        }).map((item)=>item.data)
 
         const redisDocs = batch.filter((item) => {
             return item.type === 'redis'
-        })
+        }).map((item)=>item.data)
 
         const systemDocs = batch.filter((item) => {
             return item.type === 'system'
-        })
+        }).map((item)=>item.data)
 
         const jobDocs = batch.filter((item) => {
             return item.type === 'job'
-        })
+        }).map((item)=>item.data)
 
         await Promise.all([
             queueDocs.length > 0 ? QueueSnapshot.insertMany(queueDocs) : null,

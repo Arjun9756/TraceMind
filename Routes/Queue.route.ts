@@ -3,6 +3,7 @@ import { QueueSnapshot } from '../Models/QueueSnapshot.model'
 import calculateQueue from '../BusinessLogic/Queue.logic'
 import { getIO } from '../Websocket/Websocket'
 import generateChat from '../Utility/Groq.AI'
+import { addToBuffer } from '../Utility/BulkBuffer'
 
 const io = getIO()
 const router = express.Router()
@@ -145,22 +146,24 @@ router.post("/", async (req: Request, res: Response) => {
             })
         }
 
-        const snapshot = await QueueSnapshot.create({
-            queueName: rawData.queueName,
-            raw: {
-                waiting: rawData.waiting,
-                active: rawData.active,
-                completed: rawData.completed,
-                failed: rawData.failed,
-                stalledCount: rawData.stalledCount,
-                councurrency: rawData.concurrency,
-            },
-            calculated,
-            status,
-            alertMessage
+        addToBuffer({
+            type: "queue",
+            data: {
+                queueName: rawData.queueName,
+                raw: {
+                    waiting: rawData.waiting,
+                    active: rawData.active,
+                    completed: rawData.completed,
+                    failed: rawData.failed,
+                    stalledCount: rawData.stalledCount,
+                    councurrency: rawData.concurrency,
+                },
+                calculated,
+                status,
+                alertMessage
+            }
         })
 
-        await snapshot.save() // Save to mongo db
         return res.status(200).json({
             status: true,
             message: "Snapsot Noted"
@@ -179,18 +182,18 @@ router.get('/result', async (req, res) => {
     let { cursorId } = req.query
     try {
         let query: any = {}
-        
+
         if (cursorId && cursorId !== 'null') {
             query.capturedAt = { $lt: new Date(cursorId as string) }
         }
-        
+
         let queueResult = await QueueSnapshot
             .find(query)
             .sort({ capturedAt: -1 })
             .limit(5)
 
         let newCursorId = null
-        
+
         if (queueResult.length > 0) {
             newCursorId = queueResult[queueResult.length - 1]!.capturedAt
         }

@@ -4,6 +4,7 @@ import { RedisSnapshot, IRedisSnapshot } from '../Models/RedisEvent.model'
 import getRedisResult from '../BusinessLogic/Redis.logic'
 import { getIO } from '../Websocket/Websocket'
 import generateChat from '../Utility/Groq.AI'
+import {addToBuffer} from '../Utility/BulkBuffer'
 
 const router = express.Router()
 const io = getIO()
@@ -58,20 +59,23 @@ router.post('/', async (req, res) => {
     const rawData: IRedisSnapshot['raw'] = req.body
     try {
         const { calculated, alertMessage, status } = getRedisResult(rawData)
-        const insertion = await RedisSnapshot.insertOne({
-            raw: {
-                latencyMs: Number(rawData.latencyMs),
-                memUsedMB: Number(rawData.memUsedMB),
-                memMaxMB: Number(rawData.memMaxMB),
-                connectedClients: Number(rawData.connectedClients),
-                commandPerSec: Number(rawData.commandPerSec),
-                evictedKeys: Number(rawData.evictedKeys),
-                keySpaceHits: Number(rawData.keySpaceHits),
-                keySpaceMisses: Number(rawData.keySpaceMisses)
-            },
-            calculated,
-            status,
-            alertMessage
+        addToBuffer({
+            type:"redis",
+            data:{
+                raw: {
+                    latencyMs: Number(rawData.latencyMs),
+                    memUsedMB: Number(rawData.memUsedMB),
+                    memMaxMB: Number(rawData.memMaxMB),
+                    connectedClients: Number(rawData.connectedClients),
+                    commandPerSec: Number(rawData.commandPerSec),
+                    evictedKeys: Number(rawData.evictedKeys),
+                    keySpaceHits: Number(rawData.keySpaceHits),
+                    keySpaceMisses: Number(rawData.keySpaceMisses)
+                },
+                calculated,
+                status,
+                alertMessage
+            }
         })
 
         const message = `
@@ -138,7 +142,10 @@ Analyze this Redis snapshot and provide actionable insights in Hinglish.
             }
         }
 
-        io.emit('groqRedisAnalyse', aiExplanation)
+        if(response && response.calculate.isHighLatency || response.calculate.isLowHitRate || response.calculate.isEvicting){
+            io.emit('groqRedisAnalyse', aiExplanation)
+        }
+        
         return res.status(200).json({
             status: true,
             message: "Redis Data Inserted"

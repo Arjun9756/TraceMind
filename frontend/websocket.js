@@ -338,8 +338,8 @@ async function fetchNextPage(type) {
         
         const response = await fetch(url);
         if (!response.ok) {
-            console.error(`API error for ${type}:`, response.status);
-            if (pageInfo) pageInfo.textContent = 'Error loading data';
+            console.error(`API error for ${type}:`, response.status, response.statusText);
+            if (pageInfo) pageInfo.textContent = `Error loading data (${response.status})`;
             if (nextBtn) nextBtn.disabled = true;
             return;
         }
@@ -347,6 +347,15 @@ async function fetchNextPage(type) {
         const apiData = await response.json();
         console.log(`✅ Response for ${type}:`, apiData);
         
+        // Validate response structure
+        if (!apiData || typeof apiData !== 'object') {
+            console.error(`Invalid response format for ${type}`);
+            if (pageInfo) pageInfo.textContent = 'Error: Invalid response format';
+            if (nextBtn) nextBtn.disabled = true;
+            return;
+        }
+        
+        // If status is false or no data, return empty array
         if (!apiData.status) {
             console.warn(`API returned status=false for ${type}`);
             if (pageInfo) pageInfo.textContent = 'No data available';
@@ -354,7 +363,10 @@ async function fetchNextPage(type) {
             return;
         }
         
-        if (!apiData.data || apiData.data.length === 0) {
+        // Ensure data is an array, even if null or undefined
+        const data = Array.isArray(apiData.data) ? apiData.data : [];
+        
+        if (data.length === 0) {
             console.warn(`No data returned for ${type}`);
             if (pageInfo) pageInfo.textContent = 'No more records';
             if (nextBtn) nextBtn.disabled = true;
@@ -369,11 +381,11 @@ async function fetchNextPage(type) {
             }
         }
         
-        // Add new rows
-        console.log(`Adding ${apiData.data.length} rows to ${tableBodyId}`);
-        apiData.data.forEach(record => {
-            const newRow = tbody.insertRow();
+        // Add new rows safely
+        console.log(`Adding ${data.length} rows to ${tableBodyId}`);
+        data.forEach(record => {
             try {
+                const newRow = tbody.insertRow();
                 parseFunction(newRow, record);
             } catch (e) {
                 console.error(`Error parsing row for ${type}:`, e);
@@ -385,33 +397,32 @@ async function fetchNextPage(type) {
             tbody.deleteRow(0);
         }
         
-        // Update pagination state for NEXT call
-        paginationState[type].cursor = apiData.nextCursor || null;
-        paginationState[type].hasMore = apiData.hasMore === true;
+        // Update pagination state with cursor and hasMore flag
+        paginationState[type].cursor = apiData.nextCursor !== null && apiData.nextCursor !== undefined ? apiData.nextCursor : null;
+        paginationState[type].hasMore = Boolean(apiData.hasMore);
         
         console.log(`📊 Updated pagination state for ${type}:`, paginationState[type]);
         
-        // Update UI
+        // Update UI buttons and info
         if (nextBtn) {
-            if (apiData.hasMore === true) {
-                nextBtn.disabled = false;
-            } else {
-                nextBtn.disabled = true;
-            }
+            nextBtn.disabled = !paginationState[type].hasMore;
         }
         
         if (pageInfo) {
-            if (apiData.hasMore === true) {
-                pageInfo.textContent = `Loaded: ${tbody.rows.length} records | Click Next for more`;
+            const totalRows = tbody.rows.length;
+            if (paginationState[type].hasMore) {
+                pageInfo.textContent = `Loaded: ${totalRows} records | Click Next for more`;
             } else {
-                pageInfo.textContent = `Loaded: ${tbody.rows.length} records | No more data`;
+                pageInfo.textContent = `Loaded: ${totalRows} records | No more data`;
             }
         }
         
     } catch (error) {
-        console.error('🚨 Error fetching next page for', type, ':', error);
+        console.error('🚨 Error fetching next page for', type, ':', error.message);
         const pageInfo = document.getElementById(pageInfoId || (type + 'PageInfo'));
-        if (pageInfo) pageInfo.textContent = 'Error: ' + error.message;
+        if (pageInfo) pageInfo.textContent = `Error: ${error.message || 'Unknown error'}`;
+        const nextBtn = document.getElementById(buttonId);
+        if (nextBtn) nextBtn.disabled = true;
     }
 }
 
@@ -492,6 +503,12 @@ document.addEventListener('DOMContentLoaded', () => {
             link.classList.add('active');
             
             console.log(`📌 Switched to section: ${section}`);
+            
+            // Auto-load first page of data for paginated sections
+            if (['jobs', 'queue', 'system', 'redis'].includes(section)) {
+                console.log(`🔄 Loading first page of ${section} data...`);
+                fetchNextPage(section);
+            }
         });
     });
     
