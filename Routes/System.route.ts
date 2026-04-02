@@ -38,43 +38,8 @@ router.get('/', (req, res) => {
     })
 })
 
-const SYSTEM_SYSTEM_PROMPT = `
-You are a backend infrastructure monitoring AI specializing in Server/System monitoring.
-You will receive real-time system snapshot data including CPU, Memory, Load Average metrics.
-Your job is to analyze it and respond ONLY in this exact JSON format — no extra text, no markdown, no explanation outside JSON:
-
-{
-  "summary": "one line — what is happening",
-  "reason": "why this might be happening", 
-  "action": "what should be done immediately",
-  "severity": "low | medium | high | critical",
-  "isAnomaly": true or false
-}
-
-System-specific Analysis Rules:
-- CPU > 90%: CRITICAL — immediate scaling needed
-- CPU 70-90%: HIGH — monitor closely, prepare scaling
-- Memory > 90%: CRITICAL — risk of OOM kills
-- Memory 70-90%: HIGH — memory leak possible
-- Load Average > Core Count: HIGH — system overloaded
-- Load Average > 2x Core Count: CRITICAL — imminent crash
-- Heap Memory > 80%: HIGH — Node.js memory pressure
-- Disk > 85%: WARNING — cleanup needed
-
-Severity Guide:
-- low = healthy, all metrics normal
-- medium = warning, one metric elevated
-- high = multiple metrics high, performance degraded
-- critical = system at risk of crash/failure
-
-Word Limits:
-- summary: under 15 words
-- reason: under 20 words
-- action: under 20 words
-
-Response Language: English
-Output: Pure JSON only, no markdown, no extra fields
-`
+const SYSTEM_SYSTEM_PROMPT = `Analyze system metrics. Response ONLY JSON: {"summary": "brief (15 words)", "reason": "why (20 words)", "action": "fix (20 words)", "severity": "low|medium|high|critical", "isAnomaly": bool}
+Rules: cpu>90%=CRITICAL, cpu>70%=HIGH, memory>90%=CRITICAL, memory>70%=HIGH, load>cores=HIGH, load>2x=CRITICAL`
 
 router.post('/', async (req, res) => {
     const rawData: SystemRawData = req.body
@@ -137,33 +102,7 @@ router.post('/', async (req, res) => {
             })
         }
 
-        const message = `
-SYSTEM ALERT
-
-Status: ${response?.status.toUpperCase()}
-Alerts: ${response?.alertMessage || 'None'}
-
-RAW SYSTEM DATA:
-- CPU Usage: ${rawData.cpuPercent}%
-- Total Memory: ${rawData.memTotalMB} MB
-- Free Memory: ${rawData.memFreeMB} MB
-- Load Average (1m): ${rawData.loadAvg1M}
-- Load Average (5m): ${rawData.loadAvg5M}
-- Load Average (15m): ${rawData.loadAvg15M}
-- Core Count: ${rawData.coreCount}
-- Process Heap: ${rawData.processHeapMB} MB
-- Platform: ${rawData.platform}
-- Uptime: ${rawData.uptime} seconds
-- Process Uptime: ${rawData.processUptime} seconds
-
-CALCULATED METRICS:
-- Memory Used: ${response?.calculated.memUsedMB} MB
-- Memory Used Percent: ${response?.calculated.memUsedPercent}%
-- High CPU: ${response?.calculated.isHighCPU ? 'YES' : 'NO'}
-- High Memory: ${response?.calculated.isHighMemory ? 'YES' : 'NO'}
-
-Analyze this system snapshot and provide actionable insights in Hinglish.
-`
+        const message = `CPU:${rawData.cpuPercent}% Mem:${rawData.memFreeMB}/${rawData.memTotalMB}MB Load:${rawData.loadAvg1M}/${rawData.loadAvg5M}/${rawData.loadAvg15M} Cores:${rawData.coreCount} Heap:${rawData.processHeapMB}MB MemUsed:${response?.calculated.memUsedMB}MB MemPercent:${response?.calculated.memUsedPercent}% HighCPU:${response?.calculated.isHighCPU} HighMem:${response?.calculated.isHighMemory}`
 
         const { response: groqResponse, reasoning } = await generateChat(message, SYSTEM_SYSTEM_PROMPT)
         io.emit("systemSnapshot", {
@@ -211,7 +150,7 @@ Analyze this system snapshot and provide actionable insights in Hinglish.
             }
         }
 
-        if(response && response.calculated.isHighCPU || response.calculated.isHighMemory){
+        if(response?.calculated.isHighCPU || response?.calculated.isHighMemory){
             io.emit("groqSystemAnalyse", aiExplanation)
         }
 
@@ -249,7 +188,6 @@ router.get('/result', async (req, res) => {
             status: true,
             data: systemResult,
             nextCursor: newCursorId,
-            hasMore: systemResult.length === 5
         })
     }
     catch (error: any) {
@@ -257,8 +195,7 @@ router.get('/result', async (req, res) => {
         return res.status(200).json({
             status: false,
             data: [],
-            nextCursor: null,
-            hasMore: false
+            nextCursor: null
         })
     }
 })

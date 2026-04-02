@@ -10,12 +10,12 @@ let currentData = {
     redisAnalysis: null
 };
 
-// Pagination state
+// Pagination state - removed hasMore, just track cursor
 let paginationState = {
-    system: { cursor: null, hasMore: false },
-    queue: { cursor: null, hasMore: false },
-    redis: { cursor: null, hasMore: false },
-    jobs: { cursor: null, hasMore: false }
+    system: { cursor: null },
+    queue: { cursor: null },
+    redis: { cursor: null },
+    jobs: { cursor: null }
 };
 
 function initWebSocket() {
@@ -355,20 +355,12 @@ async function fetchNextPage(type) {
             return;
         }
         
-        // If status is false or no data, return empty array
-        if (!apiData.status) {
-            console.warn(`API returned status=false for ${type}`);
-            if (pageInfo) pageInfo.textContent = 'No data available';
-            if (nextBtn) nextBtn.disabled = true;
-            return;
-        }
-        
         // Ensure data is an array, even if null or undefined
         const data = Array.isArray(apiData.data) ? apiData.data : [];
         
         if (data.length === 0) {
             console.warn(`No data returned for ${type}`);
-            if (pageInfo) pageInfo.textContent = 'No more records';
+            if (pageInfo) pageInfo.textContent = 'No more records available';
             if (nextBtn) nextBtn.disabled = true;
             return;
         }
@@ -397,23 +389,25 @@ async function fetchNextPage(type) {
             tbody.deleteRow(0);
         }
         
-        // Update pagination state with cursor and hasMore flag
+        // Update pagination state with cursor for next request
         paginationState[type].cursor = apiData.nextCursor !== null && apiData.nextCursor !== undefined ? apiData.nextCursor : null;
-        paginationState[type].hasMore = Boolean(apiData.hasMore);
         
         console.log(`📊 Updated pagination state for ${type}:`, paginationState[type]);
         
         // Update UI buttons and info
+        // Disable button only if no data was returned or cursor is null
+        const hasMoreData = data.length > 0 && apiData.nextCursor !== null && apiData.nextCursor !== undefined;
+        
         if (nextBtn) {
-            nextBtn.disabled = !paginationState[type].hasMore;
+            nextBtn.disabled = !hasMoreData;
         }
         
         if (pageInfo) {
             const totalRows = tbody.rows.length;
-            if (paginationState[type].hasMore) {
+            if (hasMoreData) {
                 pageInfo.textContent = `Loaded: ${totalRows} records | Click Next for more`;
             } else {
-                pageInfo.textContent = `Loaded: ${totalRows} records | No more data`;
+                pageInfo.textContent = `Loaded: ${totalRows} records | End of records`;
             }
         }
         
@@ -488,7 +482,7 @@ function parseJobRow(row, record) {
 document.addEventListener('DOMContentLoaded', () => {
     // Show diagnostic info
     console.log('=== Trace Mind Dashboard Loaded ===');
-    console.log('Pagination State:', paginationState);
+    console.log('Pagination State (Cursors):', paginationState);
     console.log('Current Data:', currentData);
     
     document.querySelectorAll('.nav-item').forEach(link => {

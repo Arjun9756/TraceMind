@@ -25,42 +25,8 @@ router.get('/', (req, res) => {
     })
 })
 
-const JOB_SYSTEM_PROMPT = `
-You are a backend infrastructure monitoring AI specializing in BullMQ job analysis.
-You will receive real-time job event data including processing time, retry attempts, and anomaly scores.
-Your job is to analyze it and respond ONLY in this exact JSON format — no extra text, no markdown, no explanation outside JSON:
-
-{
-  "summary": "one line — what is happening",
-  "reason": "why this might be happening",
-  "action": "what should be done immediately",
-  "severity": "low | medium | high | critical",
-  "isAnomaly": true or false
-}
-
-Job-specific Analysis Rules:
-- isRetryStorm = true: HIGH — job failing repeatedly, downstream service may be down
-- zScore > 3: HIGH — processing time is abnormally slow compared to history
-- zScore > 5: CRITICAL — severe processing anomaly, worker may be stuck
-- status = failed AND attemptMade >= maxAttempt: HIGH — job exhausted all retries
-- processingMs > 10000 (10s): WARNING — job taking too long
-- processingMs > 30000 (30s): CRITICAL — job likely stuck or timed out
-- isAnomaly = true AND isRetryStorm = true: CRITICAL — both anomaly and retry storm
-
-Severity Guide:
-- low    = job completed normally, zScore < 2
-- medium = zScore 2-3 or single retry
-- high   = retry storm or zScore > 3 or job failed
-- critical = exhausted retries + high zScore or processingMs > 30s
-
-Word Limits:
-- summary: under 15 words
-- reason: under 20 words
-- action: under 20 words
-
-Response Language: English
-Output: Pure JSON only, no markdown, no extra fields
-`
+const JOB_SYSTEM_PROMPT = `Analyze job event. Response ONLY JSON: {"summary": "brief (15 words)", "reason": "why (20 words)", "action": "fix (20 words)", "severity": "low|medium|high|critical", "isAnomaly": bool}
+Rules: isRetryStorm=HIGH, zScore>3=HIGH, zScore>5=CRITICAL, status=failed+maxAttempt=HIGH, time>30s=CRITICAL, failed+anomaly=CRITICAL`
 
 
 router.post('/', async (req, res) => {
@@ -134,27 +100,7 @@ router.post('/', async (req, res) => {
         })
 
         if (calculated.isAnomaly || calculated.isRetryStrom || rawData.status === 'failed') {
-            const message = `
-JOB EVENT ALERT
-
-Queue     : ${rawData.queueName}
-Job ID    : ${rawData.jobId}
-Status    : ${rawData.status.toUpperCase()}
-
-RAW DATA:
-- Processing Time : ${rawData.processingMs}ms
-- Attempts Made   : ${rawData.attemptMade}
-- Max Attempts    : ${rawData.maxAttempt}
-- Error           : ${rawData.errorMessage ?? 'None'}
-
-CALCULATED:
-- Z-Score         : ${calculated.zScore}
-- Avg At Time     : ${calculated.avgAtTime}ms
-- Is Retry Storm  : ${calculated.isRetryStrom ? 'YES' : 'NO'}
-- Is Anomaly      : ${calculated.isAnomaly ? 'YES' : 'NO'}
-
-Analyze this job event and provide actionable insights.
-`
+            const message = `Queue:${rawData.queueName} Job:${rawData.jobId} Status:${rawData.status} Time:${rawData.processingMs}ms Attempts:${rawData.attemptMade}/${rawData.maxAttempt} ZScore:${calculated.zScore} Anomaly:${calculated.isAnomaly} RetryStorm:${calculated.isRetryStrom}`
             try {
                 const { response: aiResponse } = await generateChat(message, JOB_SYSTEM_PROMPT)
                 const cleaned = aiResponse.trim().replace(/```json|```/g, '').trim()
@@ -207,7 +153,6 @@ router.get('/result', async (req, res) => {
             status: true,
             data: jobResult,
             nextCursor: newCursorId,
-            hasMore: jobResult.length === 5
         })
     }
     catch (error: any) {
@@ -215,8 +160,7 @@ router.get('/result', async (req, res) => {
         return res.status(200).json({
             status: false,
             data: [],
-            nextCursor: null,
-            hasMore: false
+            nextCursor: null
         })
     }
 })

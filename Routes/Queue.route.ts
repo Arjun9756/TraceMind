@@ -15,40 +15,8 @@ router.get("/", (req: Request, res: Response) => {
 })
 
 // PROMPT PART
-const QUEUE_SYSTEM_PROMPT = `
-You are a backend infrastructure monitoring AI specializing in Bull Queue monitoring.
-You will receive real-time queue snapshot data from Bull/BullMQ queues.
-Your job is to analyze it and respond ONLY in this exact JSON format — no extra text, no markdown, no explanation outside JSON:
-
-{
-  "summary": "one line — what is happening",
-  "reason": "why this might be happening", 
-  "action": "what should be done immediately",
-  "severity": "low | medium | high | critical",
-  "isAnomaly": true or false
-}
-
-Queue-specific Analysis Rules:
-- Ghost Failure: waiting > 0, active = 0, workers not picking jobs → CRITICAL
-- High Failure Rate: failureRate > 10% → HIGH severity
-- Queue Growth: growthRate > 20% consistently → WARNING
-- Stalled Jobs: stalledCount > 0 → investigate workers
-- Z-Score > 3: unusual spike in queue size → ANOMALY
-
-Severity Guide:
-- low = healthy, normal operations
-- medium = warning, needs attention but not urgent
-- high = critical failure rate or high latency
-- critical = ghost failure, system down, workers dead
-
-Word Limits:
-- summary: under 15 words
-- reason: under 20 words
-- action: under 20 words
-
-Response Language: English
-Output: Pure JSON only, no markdown, no extra fields
-`
+const QUEUE_SYSTEM_PROMPT = `Analyze queue data. Response ONLY JSON: {"summary": "brief (15 words)", "reason": "why (20 words)", "action": "fix (20 words)", "severity": "low|medium|high|critical", "isAnomaly": bool}
+Rules: waiting>0+active=0=CRITICAL, failure>10%=HIGH, growth>20%=WARNING, stalledCount>0=HIGH, zScore>3=ANOMALY`
 
 // PROMPT PART END
 
@@ -67,31 +35,8 @@ router.post("/", async (req: Request, res: Response) => {
 
         const { status, calculated, alertMessage } = queueResponse
 
-        // Message PART
-        const message = `
-        QUEUE ALERT
-
-            Queue Name: ${rawData.queueName}
-            Status: ${status.toUpperCase()}
-            Alerts: ${alertMessage || 'None'}
-
-            RAW QUEUE DATA:
-            - Waiting Jobs: ${rawData.waiting}
-            - Active Jobs: ${rawData.active}
-            - Completed Jobs: ${rawData.completed}
-            - Failed Jobs: ${rawData.failed}
-            - Stalled Count: ${rawData.stalledCount}
-            - Concurrency: ${rawData.concurrency}
-
-            CALCULATED METRICS:
-            - Growth Rate: ${calculated.growthRate}%
-            - Failure Rate: ${calculated.failureRate}%
-            - Avg Processing Time: ${calculated.avgProcessingMs}ms
-            - Z-Score: ${calculated.zScore}
-            - Ghost Failure Detected: ${calculated.isGhostFailure ? 'YES' : 'NO'}
-
-            Analyze this queue snapshot and provide actionable insights in Hinglish.
-            `
+        // Message PART - Compact format to reduce tokens
+        const message = `Queue:${rawData.queueName} Wait:${rawData.waiting} Active:${rawData.active} Failed:${rawData.failed} Stalled:${rawData.stalledCount} Growth:${calculated.growthRate}% Failure:${calculated.failureRate}% ZScore:${calculated.zScore} Ghost:${calculated.isGhostFailure}`
 
         // Message PART END
 
@@ -202,7 +147,6 @@ router.get('/result', async (req, res) => {
             status: true,
             data: queueResult,
             nextCursor: newCursorId,
-            hasMore: queueResult.length === 5
         })
     }
     catch (error: any) {

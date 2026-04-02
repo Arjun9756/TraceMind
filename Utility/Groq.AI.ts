@@ -22,31 +22,52 @@ interface GroqResponse {
  * @returns {response , reasoning}
  */
 async function generateChat(message: string, systemPrompt: string): Promise<GroqResponse> {
-    try {
-        const chat = await groq.chat.completions.create({
-            model:"openai/gpt-oss-120b",
-            messages: [
-                { role: "user", content: message },
-                { role: "system", content: systemPrompt },
-                { role: "assistant", content: "Provide The Result in Much More Cleaner Way" }
-            ],
-            reasoning_effort: "medium",
-            max_completion_tokens: 8192
-        })
+    let retries = 0
+    const maxRetries = 3
+    const baseDelay = 1000 // 1 second
 
-        const firstChoice = chat?.choices?.[0]
-        const content = firstChoice?.message?.content
+    while (retries < maxRetries) {
+        try {
+            const chat = await groq.chat.completions.create({
+                model:"openai/gpt-oss-120b",
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: message }
+                ],
+                max_completion_tokens: 1000 // Reduced from 8192
+            })
 
-        if (!content) {
-            throw new Error('No Response Generated');
+            const firstChoice = chat?.choices?.[0]
+            const content = firstChoice?.message?.content
+
+            if (!content) {
+                throw new Error('No Response Generated');
+            }
+
+            return { response: content, reasoning: chat?.choices[0]?.message?.reasoning }
         }
+        catch (error: any) {
+            const errorCode = error?.error?.code || error?.status
+            const isRateLimit = errorCode === 'rate_limit_exceeded' || error?.status === 429
+            
+            if (isRateLimit && retries < maxRetries - 1) {
+                const delay = baseDelay * Math.pow(2, retries) // Exponential backoff
+                console.warn(`Rate limit hit. Retry ${retries + 1}/${maxRetries} after ${delay}ms`)
+                await new Promise(resolve => setTimeout(resolve, delay))
+                retries++
+            } else {
+                console.error("Error While Generating Text From AI:", {
+                    message: error?.message,
+                    code: errorCode,
+                    status: error?.status,
+                    retry: retries
+                })
+                throw new Error(error?.message || "No Message Generated")
+            }
+        }
+    }
 
-        return { response: content, reasoning: chat?.choices[0]?.message?.reasoning }
-    }
-    catch (error: any) {
-        console.log("Error While Generating Text From AI")
-        throw new Error(error?.message || "No Message Generated")
-    }
+    throw new Error("Max retries exceeded for AI generation")
 }
 
 export default generateChat

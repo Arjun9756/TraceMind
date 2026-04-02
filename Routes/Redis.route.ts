@@ -16,44 +16,8 @@ router.get('/', (req, res) => {
     })
 })
 
-const REDIS_SYSTEM_PROMPT = `
-You are a backend infrastructure monitoring AI specializing in Redis monitoring.
-You will receive real-time Redis snapshot data including latency, memory, hit rate, and eviction metrics.
-Your job is to analyze it and respond ONLY in this exact JSON format — no extra text, no markdown, no explanation outside JSON:
-
-{
-  "summary": "one line — what is happening",
-  "reason": "why this might be happening", 
-  "action": "what should be done immediately",
-  "severity": "low | medium | high | critical",
-  "isAnomaly": true or false
-}
-
-Redis-specific Analysis Rules:
-- Latency > 100ms: HIGH — slow queries affecting performance
-- Latency > 500ms: CRITICAL — Redis bottleneck, check slowlog
-- Memory > 90%: CRITICAL — evictions happening, data loss risk
-- Memory 80-90%: HIGH — scale memory or enable eviction policy
-- Hit Rate < 70%: WARNING — cache inefficiency, review keys
-- Hit Rate < 50%: HIGH — major cache misses, optimize queries
-- Evicted Keys > 0: WARNING — memory pressure, keys being dropped
-- Evicted Keys > 1000: HIGH — significant data loss
-- Connected Clients > 10000: HIGH — connection limit approaching
-
-Severity Guide:
-- low = healthy, all metrics normal
-- medium = one metric warning (latency 50-100ms, memory 70-80%)
-- high = multiple warnings or one critical metric
-- critical = memory full, high latency, or mass evictions
-
-Word Limits:
-- summary: under 15 words
-- reason: under 20 words
-- action: under 20 words
-
-Response Language: English
-Output: Pure JSON only, no markdown, no extra fields
-`
+const REDIS_SYSTEM_PROMPT = `Analyze Redis data. Response ONLY JSON: {"summary": "brief (15 words)", "reason": "why (20 words)", "action": "fix (20 words)", "severity": "low|medium|high|critical", "isAnomaly": bool}
+Rules: latency>100ms=HIGH, latency>500ms=CRITICAL, memory>90%=CRITICAL, hitRate<50%=HIGH, evicted>1000=HIGH`
 
 router.post('/', async (req, res) => {
     const rawData: IRedisSnapshot['raw'] = req.body
@@ -78,31 +42,7 @@ router.post('/', async (req, res) => {
             }
         })
 
-        const message = `
-REDIS ALERT
-
-Status: ${status.toUpperCase()}
-Alerts: ${alertMessage || 'None'}
-
-RAW REDIS DATA:
-- Latency: ${rawData.latencyMs} ms
-- Memory Used: ${rawData.memUsedMB} MB
-- Memory Max: ${rawData.memMaxMB} MB
-- Connected Clients: ${rawData.connectedClients}
-- Commands Per Second: ${rawData.commandPerSec}
-- Evicted Keys: ${rawData.evictedKeys}
-- Keyspace Hits: ${rawData.keySpaceHits}
-- Keyspace Misses: ${rawData.keySpaceMisses}
-
-CALCULATED METRICS:
-- Hit Rate: ${calculated.hitRate}%
-- Memory Used Percent: ${calculated.memUsedPercent}%
-- High Latency: ${calculated.isHighLatency ? 'YES' : 'NO'}
-- Is Evicting: ${calculated.isEvicting ? 'YES' : 'NO'}
-- Low Hit Rate: ${calculated.isLowHitRate ? 'YES' : 'NO'}
-
-Analyze this Redis snapshot and provide actionable insights in Hinglish.
-`
+        const message = `Latency:${rawData.latencyMs}ms Mem:${rawData.memUsedMB}/${rawData.memMaxMB}MB Clients:${rawData.connectedClients} Evicted:${rawData.evictedKeys} HitRate:${calculated.hitRate}% MemPercent:${calculated.memUsedPercent}% HighLatency:${calculated.isHighLatency} Evicting:${calculated.isEvicting} LowHitRate:${calculated.isLowHitRate}`
         const { response, reasoning } = await generateChat(message, REDIS_SYSTEM_PROMPT)
 
         io.emit("redisSnapshot", {
@@ -142,7 +82,7 @@ Analyze this Redis snapshot and provide actionable insights in Hinglish.
             }
         }
 
-        if(response && response.calculate.isHighLatency || response.calculate.isLowHitRate || response.calculate.isEvicting){
+        if(calculated.isHighLatency || calculated.isLowHitRate || calculated.isEvicting){
             io.emit('groqRedisAnalyse', aiExplanation)
         }
         
@@ -184,7 +124,6 @@ router.get('/result', async (req, res) => {
             status: true,
             data: redisResult,
             nextCursor: newCursorId,
-            hasMore: redisResult.length === 5
         })
     }
     catch (error: any) {
@@ -192,8 +131,7 @@ router.get('/result', async (req, res) => {
         return res.status(200).json({
             status: false,
             data: [],
-            nextCursor: null,
-            hasMore: false
+            nextCursor: null
         })
     }
 })
