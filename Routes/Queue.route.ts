@@ -4,6 +4,7 @@ import calculateQueue from '../BusinessLogic/Queue.logic'
 import { getIO } from '../Websocket/Websocket'
 import generateChat from '../Utility/Groq.AI'
 import { addToBuffer } from '../Utility/BulkBuffer'
+import rateLimiter from '../Server Security/RateLimit'
 
 const io = getIO()
 const router = express.Router()
@@ -123,7 +124,7 @@ router.post("/", async (req: Request, res: Response) => {
     }
 })
 
-router.get('/result', async (req, res) => {
+router.get('/result', rateLimiter, async (req, res) => {
     let { cursorId } = req.query
     try {
         let query: any = {}
