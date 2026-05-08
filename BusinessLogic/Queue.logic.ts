@@ -59,35 +59,18 @@ async function getPrevQueueData(queueName:string):Promise<RawDataQueue | null>{
 /**
  * 
  * @param queueName string
- * @param avgProcessingMs number
- * @returns {number}
+ * @returns {number} - Returns the latest z-score from job events
+ * @description Z-score is now calculated in JobEvent.logic.ts when actual jobs complete
+ * This function just retrieves the last calculated z-score for display purposes
  */
-async function getZScore(queueName:string , avgProcessingMs:number):Promise<number>{
-    const processingKey = `${queueName}:processing`
+async function getLatestZScore(queueName:string):Promise<number>{
+    const zScoreKey = `${queueName}:latestZScore`
     try{
-        const list = await redis.lrange(processingKey , 0 , -1)
-        if(list.length < 5)
-            return 0
-
-        // Finding Standard Deviation To Check 
-        //1. Find the diff from meand power it two and summ it up
-
-        let meanDiffSum = 0
-        for(let item of list){
-            meanDiffSum += Math.pow((avgProcessingMs - parseInt(item ?? "0")) , 2)
-        }
-
-        meanDiffSum = meanDiffSum / list.length
-        let stddev = Math.sqrt(meanDiffSum)
-        
-        if(!stddev || stddev === 0 || stddev == null || stddev === undefined){
-            return 0
-        } 
-
-        return parseFloat(((parseInt(list[0]!) - avgProcessingMs) / stddev).toFixed(2)) // ! tells compiler i promise that index is not empty
+        const zScore = await redis.get(zScoreKey)
+        return zScore ? parseFloat(zScore) : 0
     }
     catch(error:any){
-        console.log(`Error While Getting ZScore ${error?.message}`)
+        console.log(`Error While Getting Latest ZScore ${error?.message}`)
         return 0
     }
 }
@@ -95,8 +78,8 @@ async function getZScore(queueName:string , avgProcessingMs:number):Promise<numb
 /**
  * 
  * @param queueName {string}
- * @description {Calculate the mean of last five transaction}
- * @returns {null | avgProcessingMs}
+ * @description {Calculate the mean of last 5 job processing times}
+ * @returns {number | null} - Average processing time in milliseconds
  */
 async function getAvgProcessing(queueName:string):Promise<number | null>{
     const processingKey = `${queueName}:processing`
@@ -105,7 +88,7 @@ async function getAvgProcessing(queueName:string):Promise<number | null>{
         const list = await redis.lrange(processingKey , 0 , -1)
         console.log(`List For Queue ${list}`)
 
-        if(list.length < 5){
+        if(list.length === 0){
             return 0
         }
 
@@ -132,30 +115,32 @@ function getStatus(growthRate:number , failureRate:number , isGhostFailure:boole
     if(isGhostFailure){
         return {
             status:"ghostFailure",
-            alertMessage:`Workers Dead ${waiting} Jobs Are Waiting`
+            alertMessage:`Workers Dead - ${waiting} Jobs Are Stuck`
         }
     }
     else if(failureRate > 10 || growthRate > 20){
         return {
             status:"critical",
-            alertMessage:(failureRate > 10 ? `Failure Rate is Going High ${failureRate}` : `Growth Rate is Going High ${growthRate}`)
+            alertMessage:(failureRate > 10 ? `Failure Rate Critical: ${failureRate.toFixed(2)}%` : `Queue Growing Fast: +${growthRate} jobs`)
         }
     }
-    else if (failureRate > 2 || growthRate > 5 || zScore > 2) {
-        return { status: "warning", alertMessage: `Warning: failureRate=${failureRate}% growthRate=${growthRate}` }
+    else if (failureRate > 2 || growthRate > 5 || Math.abs(zScore) > 2) {
+        const alerts = []
+        if(failureRate > 2) alerts.push(`Failure Rate: ${failureRate.toFixed(2)}%`)
+        if(growthRate > 5) alerts.push(`Growth: +${growthRate} jobs`)
+        if(Math.abs(zScore) > 2) alerts.push(`Anomaly Detected (Z=${zScore.toFixed(2)})`)
+        return { status: "warning", alertMessage: `Warning: ${alerts.join(', ')}` }
     }
     return {
         status: "healthy",
-        alertMessage: "Internal System is Healthy"
+        alertMessage: "Queue is Healthy"
     }
     
 }
 
-async function recordProcessingTime(queueName: string, processingTimeMs: number) {
-    const processingKey = `${queueName}:processing`
-    await redis.lpush(processingKey, processingTimeMs.toString())
-    await redis.ltrim(processingKey, 0, 4)  // last 5 entries only
-}
+// NOTE: This function is no longer used in Queue snapshots
+// Processing times are now recorded in JobEvent.logic.ts when actual jobs complete
+// Keeping this for backward compatibility, but it should not be called from calculateQueue
 
 /**
  * 
@@ -178,36 +163,63 @@ async function calculateQueue(rawData:RawDataQueue):Promise<QueueResponse | null
                     avgProcessingMs:0
                 },
                 status:"healthy",
-                alertMessage:"No Prev Data Baseline Created"
+                alertMessage:"Baseline Created - Collecting Data"
             }
         }
 
-        const growthRate = prevData.waiting > 0 ? ((rawData.waiting - prevData.waiting) / prevData.waiting) * 100 : 0        // currWaiting - prevWaiting
-        const totalJobs = rawData.completed + rawData.failed         // completed + failed = total jobs
+        // FIX #1: Growth Rate - Absolute difference, not percentage
+        // Previous: ((45-40)/40)*100 = 12.5% ❌
+        // Now: 45-40 = +5 jobs ✅
+        const growthRate = rawData.waiting - prevData.waiting
 
-        const failedRate =  totalJobs > 0 ? rawData.failed / totalJobs * 100 : 0
-        const isGhostFailure = (rawData.active == 0 && rawData.waiting > 0 && rawData.completed === prevData.completed ? true : false)
+        // FIX #4: Failure Rate - Calculate from DELTA (recent changes only)
+        // This shows failure rate of NEW jobs since last snapshot
+        const newCompleted = rawData.completed - prevData.completed
+        const newFailed = rawData.failed - prevData.failed
+        const recentTotal = newCompleted + newFailed
+        
+        const failedRate = recentTotal > 0 
+            ? (newFailed / recentTotal) * 100 
+            : 0  // If no new jobs, use 0 instead of cumulative rate
 
+        // FIX #5: Ghost Failure - More robust detection
+        // Check if workers are truly dead (not just temporarily slow)
+        const isGhostFailure = (
+            rawData.active === 0 &&           // No active workers
+            rawData.waiting > 0 &&            // Jobs are waiting
+            rawData.completed === prevData.completed &&  // Nothing completed
+            rawData.stalledCount > 0          // Workers died mid-job
+        ) || (
+            rawData.active === 0 &&           // Alternative: No workers
+            rawData.waiting > 10 &&           // Many jobs waiting (threshold)
+            newCompleted === 0 &&             // No progress
+            rawData.stalledCount === 0        // But no stalled jobs (workers never started)
+        )
+
+        // Get average processing time from actual job completions
         let avgProcessingMs = await getAvgProcessing(rawData.queueName)
-         if(avgProcessingMs === null){
-            avgProcessingMs = 0;
+        if(avgProcessingMs === null){
+            avgProcessingMs = 0
         }
         
-        await recordProcessingTime(rawData.queueName , avgProcessingMs)
-        const zScore = await getZScore(rawData.queueName , avgProcessingMs)
-        // get status filled
+        // FIX #2 & #3: Z-score now comes from JobEvent.logic.ts
+        // It's calculated when actual jobs complete, not from queue snapshots
+        const zScore = await getLatestZScore(rawData.queueName)
+        
+        // Get status based on corrected metrics
         let {status , alertMessage} = getStatus(growthRate , failedRate , isGhostFailure , zScore , rawData.waiting)
 
-        // saved to redis
+        // Save current data as "previous" for next snapshot
         await saveToRedis(rawData.queueName , rawData)
+        
         let queueResponse:QueueResponse = {
             alertMessage:alertMessage,
             status:status,
             calculated:{
                 growthRate:growthRate,
-                failureRate:failedRate,
+                failureRate:parseFloat(failedRate.toFixed(2)),
                 avgProcessingMs:avgProcessingMs,
-                zScore:zScore,
+                zScore:parseFloat(zScore.toFixed(2)),
                 isGhostFailure:isGhostFailure
             }
         }
@@ -215,7 +227,7 @@ async function calculateQueue(rawData:RawDataQueue):Promise<QueueResponse | null
         return queueResponse
     }
     catch(error:any){
-        console.log("Error ins Calculate Redis Queue" , + error?.message)
+        console.log("Error in Calculate Queue Logic: " + error?.message)
         return null
     }
 }

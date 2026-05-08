@@ -20,12 +20,12 @@ export async function connectProducer(){
     }
 }
 
-export async function produceItem(topic:string , value:string , key:string){
+export async function produceItem(topic:string , value:string , key:string , partition:number = 0){
     try{
         await producer.send({
             topic:topic,
-            messages:[{key:key , value}],
-            compression:CompressionTypes.GZIP
+            messages:[{key:key , value , partition}],
+            compression:CompressionTypes.Snappy
         })
     }
     catch(error:any){

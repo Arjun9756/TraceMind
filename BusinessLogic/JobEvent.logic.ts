@@ -76,8 +76,17 @@ async function getProcessing(queueName:string):Promise<ProcessingStats>{
     }
 }
 
+/**
+ * @param list - Array of historical processing times
+ * @param mean - Average processing time
+ * @param currProcessing - Current job's processing time
+ * @returns {number} - Z-score indicating how many standard deviations away from mean
+ * @description Calculates how abnormal the current processing time is compared to history
+ * Z-score > 3 = highly abnormal (99.7% confidence)
+ * Z-score > 2 = suspicious (95% confidence)
+ */
 function getZScore(list:string[] , mean:number , currProcessing:number):number{
-    // 1. meanDiffSum calculate
+    // Calculate variance (average of squared differences from mean)
     let variance = 0
     for(let item of list){
         variance += Math.pow((parseInt(item ?? "0") - mean) , 2)
@@ -85,9 +94,13 @@ function getZScore(list:string[] , mean:number , currProcessing:number):number{
 
     variance = variance / list.length
     let stddev = Math.sqrt(variance)
+    
+    // If no variation in data, can't calculate z-score
     if(stddev === 0){
         return 0
     }
+    
+    // Z-score = (current value - mean) / standard deviation
     return (currProcessing - mean) / stddev
 }
 
@@ -96,13 +109,19 @@ async function JobEventLogic(rawData:RawData):Promise<JobResponse | null>{
         const isRetryStrom = (rawData.attemptMade > (rawData.maxAttempt * 0.7) ? true : false)
         const {avgAtTime , avgProcessingMs , list} = await getProcessing(rawData.queueName)
         const zScore = (list.length >= 5 ? getZScore(list , avgProcessingMs , rawData.processingMs) : 0)
-        const isAnomaly = rawData.processingMs > 5000 // 5 second se jyda liya time
+        const isAnomaly = Math.abs(zScore) > 3 || rawData.processingMs > 5000 // Z-score > 3 OR > 5 seconds
         
+        // Save the latest z-score for Queue.logic.ts to retrieve
+        const zScoreKey = `${rawData.queueName}:latestZScore`
+        await redis.set(zScoreKey, zScore.toString(), 'EX', 300) // Expire after 5 minutes
+        
+        // Push the ACTUAL processing time (not average)
         await pushProcessingMs(rawData.queueName , rawData.processingMs)
+        
         return {
             isRetryStrom,
             avgAtTime,
-            zScore,
+            zScore: parseFloat(zScore.toFixed(2)),
             isAnomaly
         }
     }
