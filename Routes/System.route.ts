@@ -6,6 +6,7 @@ import { getIO } from '../Websocket/Websocket'
 import generateChat from '../Utility/Groq.AI'
 import { addToBuffer } from '../Utility/BulkBuffer'
 import rateLimiter from '../Server Security/RateLimit'
+import {produceItem} from '../Kafka/KafkaProducer'
 
 const router = express.Router()
 const io = getIO()
@@ -151,7 +152,7 @@ router.post('/', async (req, res) => {
             }
         }
 
-        if(response?.calculated.isHighCPU || response?.calculated.isHighMemory){
+        if (response?.calculated.isHighCPU || response?.calculated.isHighMemory) {
             io.emit("groqSystemAnalyse", aiExplanation)
         }
 
@@ -162,6 +163,32 @@ router.post('/', async (req, res) => {
     }
     catch (error: any) {
         console.log(`Error While Saving System Data`)
+    }
+})
+
+router.post('/v2', async (req, res) => {
+    const rawData: SystemRawData = req.body
+    if (!rawData) {
+        return res.status(402).json({
+            status: false,
+            message: "No Data is Provided"
+        })
+    }
+
+    try {
+        const kafkaTopic = 'TraceMindTaskEvents'
+        await produceItem(kafkaTopic, JSON.stringify(rawData), 'SystemEvent', 0)
+        return res.status(200).json({
+            status: true,
+            message: "Redis Data Inserted"
+        })
+    }
+    catch (error: any) {
+        console.log(`Error in TraceMind Kafka ${error?.message}`)
+        return res.status(501).json({
+            status: false,
+            message: "TraceMind Internal Server Error"
+        })
     }
 })
 

@@ -7,6 +7,7 @@ import generateChat from '../Utility/Groq.AI'
 const io = getIO()
 import { addToBuffer } from '../Utility/BulkBuffer'
 import rateLimiter from '../Server Security/RateLimit'
+import {produceItem} from '../Kafka/KafkaProducer'
 
 interface RawData {
     queueName: string,
@@ -127,6 +128,33 @@ router.post('/', async (req, res) => {
     }
     catch (error: any) {
         console.log(`Error While Inserting JobEvent Data in Database ${error?.message}`)
+        return res.status(501).json({
+            statsu: false,
+            message: `Job Event Data is Not Able To Insert Due To ${error?.message}`
+        })
+    }
+})
+
+router.post('/v2' , async(req,res)=>{
+    const rawData:RawData = req.body
+    if(!rawData){
+        return res.status(401).json({
+            status: false,
+            message: "No RawData is Provided"
+        })
+    }
+
+    try{
+        const kafkaTopic = 'TraceMindTaskEvents'
+        await produceItem(kafkaTopic , JSON.stringify(rawData) , `JobEvent` , 0)
+        
+        return res.status(202).json({
+            status: true,
+            message: "Data Stored in Database"
+        })
+    }
+    catch(error:any){
+        console.log(`Error While Pushing Data on Kafka Producer ${error?.message}`)
         return res.status(501).json({
             statsu: false,
             message: `Job Event Data is Not Able To Insert Due To ${error?.message}`

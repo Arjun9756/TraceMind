@@ -9,3 +9,6 @@ Algorithm.txt
 Groq.tet.ts
 public
 test-data-sender.js
+ca.pem
+cert.cert
+key.key

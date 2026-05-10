@@ -6,6 +6,7 @@ import { getIO } from '../Websocket/Websocket'
 import generateChat from '../Utility/Groq.AI'
 import {addToBuffer} from '../Utility/BulkBuffer'
 import rateLimitUser from '../Server Security/RateLimit'
+import {produceItem} from '../Kafka/KafkaProducer'
 
 const router = express.Router()
 const io = getIO()
@@ -97,6 +98,32 @@ router.post('/', async (req, res) => {
         return res.status(501).json({
             status: false,
             message: "Redis Insertion Error in Trace Mind"
+        })
+    }
+})
+
+router.post('/v2' , async(req,res)=>{
+    const rawData: IRedisSnapshot['raw'] = req.body
+    if(!rawData){
+        return res.status(402).json({
+            status:false,
+            message:"No Data is Provided"
+        })
+    } 
+
+    try{
+        const kafkaTopic = 'TraceMindTaskEvents'
+        await produceItem(kafkaTopic , JSON.stringify(rawData) , 'RedisEvent' , 0)
+        return res.status(200).json({
+            status: true,
+            message: "Redis Data Inserted"
+        })
+    }
+    catch(error:any){
+        console.log(`Error in TraceMind Kafka ${error?.message}`)
+        return res.status(501).json({
+            status:false,
+            message:"TraceMind Internal Server Error"
         })
     }
 })

@@ -14,8 +14,8 @@ const kafkaClient = new Kafka({
     ssl:{
         port:12576,
         ca:fs.readFileSync(path.join(__dirname , '..' , 'ca.pem') , {encoding:'utf-8'}),
-        cert:fs.readFileSync(path.join(__dirname , '..' , 'cert.pem') , {encoding:'utf-8'}),
-        key:fs.readFileSync(path.join(__dirname , '..' , 'key.pem') , {encoding:"utf-8"}),
+        cert:fs.readFileSync(path.join(__dirname , '..' , 'cert.cert') , {encoding:'utf-8'}),
+        key:fs.readFileSync(path.join(__dirname , '..' , 'key.key') , {encoding:"utf-8"}),
         host:process.env.AIVEN_KAFKA_HOST as string,
         rejectUnauthorized:false,
     },

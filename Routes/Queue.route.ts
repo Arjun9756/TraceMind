@@ -5,6 +5,7 @@ import { getIO } from '../Websocket/Websocket'
 import generateChat from '../Utility/Groq.AI'
 import { addToBuffer } from '../Utility/BulkBuffer'
 import rateLimiter from '../Server Security/RateLimit'
+import {produceItem} from '../Kafka/KafkaProducer'
 
 const io = getIO()
 const router = express.Router()
@@ -122,6 +123,32 @@ router.post("/", async (req: Request, res: Response) => {
             message: "Trace Mind Server is Down"
         })
     }
+})
+
+router.post('/v2' , async(req,res)=>{
+    const rawData = req.body
+    if(!rawData){
+        return res.status(402).json({
+            status:false,
+            message:"Queue Data is Required"
+        })
+    }
+
+    try{
+        const kafkaTopic = 'TraceMindTaskEvents'
+        await produceItem(kafkaTopic , JSON.stringify(rawData) , 'QueueEvent' , 0)
+        return res.status(202).json({
+            status:true,
+            message:"Message Stored Successfuly in Database"
+        })
+    }
+    catch(error:any){
+        console.log(`Error in TraceMind Kafka ${error?.message}`)
+        return res.status(501).json({
+            status:false,
+            message:"TraceMind Internal Server Error"
+        })
+    }   
 })
 
 router.get('/result', rateLimiter, async (req, res) => {
