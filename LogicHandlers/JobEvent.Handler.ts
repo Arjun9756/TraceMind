@@ -1,44 +1,12 @@
-import express from 'express'
-import path from 'path'
-import { JobEvent } from '../Models/JobEventSchema.model'
+import { RawData } from '../Routes/JobEvent.route'
+import { addToBuffer } from '../Utility/BulkBuffer'
 import JobEventLogic from '../BusinessLogic/JobEvent.logic'
 import { getIO } from '../Websocket/Websocket'
 import generateChat from '../Utility/Groq.AI'
 const io = getIO()
-import { addToBuffer } from '../Utility/BulkBuffer'
-import rateLimiter from '../Server Security/RateLimit'
-import {produceItem} from '../Kafka/KafkaProducer'
+import { JOB_SYSTEM_PROMPT } from '../Promtps/GroqPrompts'
 
-export interface RawData {
-    queueName: string,
-    jobId: number,
-    processingMs: number,
-    attemptMade: number,
-    maxAttempt: number,
-    status: 'completed' | 'failed',
-    errorMessage: string
-}
-
-export const router = express.Router()
-router.get('/', (req, res) => {
-    return res.status(200).json({
-        status: true,
-        message: "Job Event Route is Working"
-    })
-})
-
-const JOB_SYSTEM_PROMPT = `Analyze job event. Response ONLY JSON: {"summary": "brief (15 words)", "reason": "why (20 words)", "action": "fix (20 words)", "severity": "low|medium|high|critical", "isAnomaly": bool}
-Rules: isRetryStorm=HIGH, zScore>3=HIGH, zScore>5=CRITICAL, status=failed+maxAttempt=HIGH, time>30s=CRITICAL, failed+anomaly=CRITICAL`
-
-
-router.post('/', async (req, res) => {
-    const rawData: RawData = req.body
-    if (!rawData) {
-        return res.status(401).json({
-            status: false,
-            message: "No RawData is Provided"
-        })
-    }
+export async function JobEventHandler(rawData: RawData) {
 
     // Push the processing time in Redis 
     const response = await JobEventLogic(rawData)
@@ -121,75 +89,8 @@ router.post('/', async (req, res) => {
             }
         }
 
-        return res.status(200).json({
-            status: true,
-            message: "Data Stored in Database"
-        })
     }
     catch (error: any) {
         console.log(`Error While Inserting JobEvent Data in Database ${error?.message}`)
-        return res.status(501).json({
-            statsu: false,
-            message: `Job Event Data is Not Able To Insert Due To ${error?.message}`
-        })
     }
-})
-
-router.post('/v2' , async(req,res)=>{
-    const rawData:RawData = req.body
-    if(!rawData){
-        return res.status(401).json({
-            status: false,
-            message: "No RawData is Provided"
-        })
-    }
-
-    try{
-        const kafkaTopic = 'TraceMindTaskEvents'
-        await produceItem(kafkaTopic , JSON.stringify(rawData) , `JobEvent` , 0)
-        
-        return res.status(202).json({
-            status: true,
-            message: "Data Stored in Database"
-        })
-    }
-    catch(error:any){
-        console.log(`Error While Pushing Data on Kafka Producer ${error?.message}`)
-        return res.status(501).json({
-            statsu: false,
-            message: `Job Event Data is Not Able To Insert Due To ${error?.message}`
-        })
-    }
-})
-
-router.get('/result', rateLimiter, async (req, res) => {
-    let { cursorId } = req.query
-    try {
-        let query: any = {}
-
-        if (cursorId && cursorId !== 'null') {
-            query.capturedAt = { $lt: new Date(cursorId as string) }
-        }
-
-        const jobResult = await JobEvent
-            .find(query)
-            .sort({ capturedAt: -1 })
-            .limit(5)
-
-        const newCursorId = jobResult.length > 0 ? jobResult[jobResult.length - 1]!.capturedAt : null
-
-        return res.status(200).json({
-            status: true,
-            data: jobResult,
-            nextCursor: newCursorId,
-        })
-    }
-    catch (error: any) {
-        console.log('Error fetching job event results:', error.message)
-        return res.status(200).json({
-            status: false,
-            data: [],
-            nextCursor: null
-        })
-    }
-})
+}

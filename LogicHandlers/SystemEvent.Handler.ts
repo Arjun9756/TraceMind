@@ -1,50 +1,12 @@
-import express from 'express'
-import redis from '../Utility/Redis.config'
 import getSystemResult from '../BusinessLogic/System.logic'
-import { SystemSnapshot } from '../Models/SystemSnapshot.model'
-import { getIO } from '../Websocket/Websocket'
 import generateChat from '../Utility/Groq.AI'
 import { addToBuffer } from '../Utility/BulkBuffer'
-import rateLimiter from '../Server Security/RateLimit'
-import {produceItem} from '../Kafka/KafkaProducer'
+import { SystemRawData } from '../Routes/System.route'
+import { SYSTEM_SYSTEM_PROMPT } from '../Promtps/GroqPrompts'
+import { getIO } from '../Websocket/Websocket'
+const io = getIO()
 
-export const router = express.Router()
-export const io = getIO()
-
-export interface SystemRawData {
-    cpuPercent: number,
-    memTotalMB: number,
-    memFreeMB: number,
-    loadAvg1M: number,
-    loadAvg5M: number,
-    loadAvg15M: number
-    coreCount: number,
-    processHeapMB: number,
-    platform: string,
-    uptime: number,
-    processUptime: number,
-    calculated: {
-        memUsedMB: number,
-        memUsedPercent: number,
-        isHighCpu: boolean,
-        isHighMemory: boolean
-    },
-    status: 'healthy' | 'warning' | 'critical',
-    alertMessage: string,
-}
-
-router.get('/', (req, res) => {
-    return res.status(200).json({
-        status: true,
-        message: "System Route is Working"
-    })
-})
-
-const SYSTEM_SYSTEM_PROMPT = `Analyze system metrics. Response ONLY JSON: {"summary": "brief (15 words)", "reason": "why (20 words)", "action": "fix (20 words)", "severity": "low|medium|high|critical", "isAnomaly": bool}
-Rules: cpu>90%=CRITICAL, cpu>70%=HIGH, memory>90%=CRITICAL, memory>70%=HIGH, load>cores=HIGH, load>2x=CRITICAL`
-
-router.post('/', async (req, res) => {
-    const rawData: SystemRawData = req.body
+export async function SystemEventHandler(rawData:SystemRawData) {
     try {
         const response = getSystemResult(rawData)
         if (response) {
@@ -155,77 +117,8 @@ router.post('/', async (req, res) => {
         if (response?.calculated.isHighCPU || response?.calculated.isHighMemory) {
             io.emit("groqSystemAnalyse", aiExplanation)
         }
-
-        return res.status(202).json({
-            status: true,
-            message: "System Data is Recevied"
-        })
     }
     catch (error: any) {
         console.log(`Error While Saving System Data`)
     }
-})
-
-router.post('/v2', async (req, res) => {
-    const rawData: SystemRawData = req.body
-    if (!rawData) {
-        return res.status(402).json({
-            status: false,
-            message: "No Data is Provided"
-        })
-    }
-
-    try {
-        const kafkaTopic = 'TraceMindTaskEvents'
-        await produceItem(kafkaTopic, JSON.stringify(rawData), 'SystemEvent', 0)
-        return res.status(200).json({
-            status: true,
-            message: "Redis Data Inserted"
-        })
-    }
-    catch (error: any) {
-        console.log(`Error in TraceMind Kafka ${error?.message}`)
-        return res.status(501).json({
-            status: false,
-            message: "TraceMind Internal Server Error"
-        })
-    }
-})
-
-router.get('/result', rateLimiter, async (req, res) => {
-    let { cursorId } = req.query
-    try {
-        let query: any = {}
-
-        if (cursorId && cursorId !== 'null') {
-            query.capturedAt = { $lt: new Date(cursorId as string) }
-        }
-
-        let systemResult = await SystemSnapshot
-            .find(query)
-            .sort({ capturedAt: -1 })
-            .limit(5)
-
-        let newCursorId = null
-
-        if (systemResult.length > 0) {
-            newCursorId = systemResult[systemResult.length - 1]!.capturedAt
-        }
-
-        return res.status(200).json({
-            status: true,
-            data: systemResult,
-            nextCursor: newCursorId,
-        })
-    }
-    catch (error: any) {
-        console.log('Error fetching system results:', error.message)
-        return res.status(200).json({
-            status: false,
-            data: [],
-            nextCursor: null
-        })
-    }
-})
-
-export default router
+}

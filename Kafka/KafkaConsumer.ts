@@ -1,14 +1,35 @@
 import kafkaClient from "./KafkaClient"
-interface KafkaMessage{
+import {JobEventHandler} from '../LogicHandlers/JobEvent.Handler'
+import { QueueEventHandler } from "../LogicHandlers/QueueEvent.Handler"
+import { SystemEventHandler } from "../LogicHandlers/SystemEvent.Handler"
+import { RedisEventHandler } from "../LogicHandlers/RedisEvent.Handler"
+import os from 'os'
 
-}
-
-async function processMessage(partition:number , message:KafkaMessage) {
+async function processMessage(partition:number , message:any) {
     try{
-
+        const key = message.key ? message.key.toString() : null
+        if(!key)
+            return
+        
+        switch(key){
+            case "JobEvent":
+                JobEventHandler(message)
+                break
+            case "QueueEvent":
+                QueueEventHandler(message)
+                break
+            case "RedisEvent":
+                RedisEventHandler(message)
+                break
+            case "SystemEvent":
+                SystemEventHandler(message)
+                break
+            default:
+                break
+        }
     }
     catch(error:any){
-
+        console.log(`Error While Processing Kafka Tasks ${error?.message}`)
     }
 }
 
@@ -46,7 +67,7 @@ async function startAndSubscribe(){
 async function consumeTopics(){
     try{
         await consumer.run({
-            eachMessage:async function({partition , message}){
+            eachMessage:async function({partition ,message}){
                 await processMessage(partition , message)
             }
         })

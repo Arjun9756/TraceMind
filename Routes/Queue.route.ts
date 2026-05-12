@@ -5,10 +5,21 @@ import { getIO } from '../Websocket/Websocket'
 import generateChat from '../Utility/Groq.AI'
 import { addToBuffer } from '../Utility/BulkBuffer'
 import rateLimiter from '../Server Security/RateLimit'
-import {produceItem} from '../Kafka/KafkaProducer'
+import { produceItem } from '../Kafka/KafkaProducer'
 
 const io = getIO()
-const router = express.Router()
+export const router = express.Router()
+
+export interface RawData {
+    queueName: string;
+    waiting: number;
+    active: number;
+    completed: number;
+    failed: number;
+    stalledCount: number;
+    concurrency: number;
+}
+
 router.get("/", (req: Request, res: Response) => {
     return res.status(202).json({
         status: true,
@@ -125,30 +136,30 @@ router.post("/", async (req: Request, res: Response) => {
     }
 })
 
-router.post('/v2' , async(req,res)=>{
+router.post('/v2', async (req, res) => {
     const rawData = req.body
-    if(!rawData){
+    if (!rawData) {
         return res.status(402).json({
-            status:false,
-            message:"Queue Data is Required"
+            status: false,
+            message: "Queue Data is Required"
         })
     }
 
-    try{
+    try {
         const kafkaTopic = 'TraceMindTaskEvents'
-        await produceItem(kafkaTopic , JSON.stringify(rawData) , 'QueueEvent' , 0)
+        await produceItem(kafkaTopic, JSON.stringify(rawData), 'QueueEvent', 0)
         return res.status(202).json({
-            status:true,
-            message:"Message Stored Successfuly in Database"
+            status: true,
+            message: "Message Stored Successfuly in Database"
         })
     }
-    catch(error:any){
+    catch (error: any) {
         console.log(`Error in TraceMind Kafka ${error?.message}`)
         return res.status(501).json({
-            status:false,
-            message:"TraceMind Internal Server Error"
+            status: false,
+            message: "TraceMind Internal Server Error"
         })
-    }   
+    }
 })
 
 router.get('/result', rateLimiter, async (req, res) => {
@@ -187,5 +198,3 @@ router.get('/result', rateLimiter, async (req, res) => {
         })
     }
 })
-
-export default router

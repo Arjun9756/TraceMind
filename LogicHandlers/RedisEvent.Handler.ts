@@ -1,33 +1,19 @@
-import express from 'express'
 import redis from '../Utility/Redis.config'
-import { RedisSnapshot, IRedisSnapshot } from '../Models/RedisEvent.model'
+import { IRedisSnapshot } from '../Models/RedisEvent.model'
 import getRedisResult from '../BusinessLogic/Redis.logic'
 import { getIO } from '../Websocket/Websocket'
 import generateChat from '../Utility/Groq.AI'
-import {addToBuffer} from '../Utility/BulkBuffer'
+import { addToBuffer } from '../Utility/BulkBuffer'
 import rateLimitUser from '../Server Security/RateLimit'
-import {produceItem} from '../Kafka/KafkaProducer'
+import { REDIS_SYSTEM_PROMPT } from '../Promtps/GroqPrompts'
+const io = getIO()
 
-export const router = express.Router()
-export const io = getIO()
-
-router.get('/', (req, res) => {
-    return res.status(200).json({
-        status: true,
-        message: "Redis Route is Working"
-    })
-})
-
-export const REDIS_SYSTEM_PROMPT = `Analyze Redis data. Response ONLY JSON: {"summary": "brief (15 words)", "reason": "why (20 words)", "action": "fix (20 words)", "severity": "low|medium|high|critical", "isAnomaly": bool}
-Rules: latency>100ms=HIGH, latency>500ms=CRITICAL, memory>90%=CRITICAL, hitRate<50%=HIGH, evicted>1000=HIGH`
-
-router.post('/', async (req, res) => {
-    const rawData: IRedisSnapshot['raw'] = req.body
+export async function RedisEventHandler(rawData: IRedisSnapshot['raw']) {
     try {
         const { calculated, alertMessage, status } = getRedisResult(rawData)
         addToBuffer({
-            type:"redis",
-            data:{
+            type: "redis",
+            data: {
                 raw: {
                     latencyMs: Number(rawData.latencyMs),
                     memUsedMB: Number(rawData.memUsedMB),
@@ -84,82 +70,11 @@ router.post('/', async (req, res) => {
             }
         }
 
-        if(calculated.isHighLatency || calculated.isLowHitRate || calculated.isEvicting){
+        if (calculated.isHighLatency || calculated.isLowHitRate || calculated.isEvicting) {
             io.emit('groqRedisAnalyse', aiExplanation)
         }
-        
-        return res.status(200).json({
-            status: true,
-            message: "Redis Data Inserted"
-        })
     }
     catch (error: any) {
         console.log(`Error While Inserting Redis Data ${error?.message}`)
-        return res.status(501).json({
-            status: false,
-            message: "Redis Insertion Error in Trace Mind"
-        })
     }
-})
-
-router.post('/v2' , async(req,res)=>{
-    const rawData: IRedisSnapshot['raw'] = req.body
-    if(!rawData){
-        return res.status(402).json({
-            status:false,
-            message:"No Data is Provided"
-        })
-    } 
-
-    try{
-        const kafkaTopic = 'TraceMindTaskEvents'
-        await produceItem(kafkaTopic , JSON.stringify(rawData) , 'RedisEvent' , 0)
-        return res.status(200).json({
-            status: true,
-            message: "Redis Data Inserted"
-        })
-    }
-    catch(error:any){
-        console.log(`Error in TraceMind Kafka ${error?.message}`)
-        return res.status(501).json({
-            status:false,
-            message:"TraceMind Internal Server Error"
-        })
-    }
-})
-
-router.get('/result', rateLimitUser, async (req, res) => {
-    let { cursorId } = req.query
-    try {
-        let query: any = {}
-        
-        if (cursorId && cursorId !== 'null') {
-            query.capturedAt = { $lt: new Date(cursorId as string) }
-        }
-        
-        let redisResult = await RedisSnapshot
-            .find(query)
-            .sort({ capturedAt: -1 })
-            .limit(5)
-
-        let newCursorId = null
-        
-        if (redisResult.length > 0) {
-            newCursorId = redisResult[redisResult.length - 1]!.capturedAt
-        }
-
-        return res.status(200).json({
-            status: true,
-            data: redisResult,
-            nextCursor: newCursorId,
-        })
-    }
-    catch (error: any) {
-        console.log('Error fetching redis results:', error.message)
-        return res.status(200).json({
-            status: false,
-            data: [],
-            nextCursor: null
-        })
-    }
-})
+}
