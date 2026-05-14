@@ -54,7 +54,7 @@ async function startAndSubscribe(){
     try{
         await consumer.subscribe({
             fromBeginning:true,
-            topic:"traceMindEvent"
+            topic:"TraceMindTaskEvents"
         })
 
         console.log("Consumer Subscribe The Topic")

@@ -12,3 +12,4 @@ test-data-sender.js
 ca.pem
 cert.cert
 key.key
+test-data-sender-v1.js
