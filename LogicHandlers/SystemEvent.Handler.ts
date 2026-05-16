@@ -92,6 +92,7 @@ export async function SystemEventHandler(rawData:SystemRawData) {
             status: response?.status,
             alertMessage: response?.alertMessage
         })
+        console.log("System Event Emit")
 
         let aiExplanation
         try {
@@ -101,10 +102,8 @@ export async function SystemEventHandler(rawData:SystemRawData) {
                 .replace(/```/g, '')
                 .trim()
             aiExplanation = JSON.parse(cleaned)
-            console.log(aiExplanation)
         }
         catch (error: any) {
-            console.log(`Error While Parsing AI Response ${error?.message}`)
             aiExplanation = {
                 summary: `System mein ${status} issue detected.`,
                 reason: 'AI response parse nahi ho paya, manual check karo.',

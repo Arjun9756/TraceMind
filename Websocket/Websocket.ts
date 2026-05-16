@@ -7,7 +7,7 @@ const app = express()
 
 app.use(express.static(path.join(__dirname, '../frontend')))
 
-// Serve index.html for SPA routing on all unknown routes
+// Serve index.html for SPA a on all unknown routes
 app.use((req, res) => {
     // If request is for a file with extension, let static middleware handle it
     if (req.path.includes('.')) {

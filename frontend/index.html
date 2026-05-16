@@ -66,6 +66,10 @@
                         <h3>Redis Analysis</h3>
                         <div id="redisAnalysis" class="analysis-content"><p class="placeholder">Waiting for data...</p></div>
                     </div>
+                    <div class="analysis-box">
+                        <h3>Job Analysis</h3>
+                        <div id="jobAnalysis" class="analysis-content"><p class="placeholder">Waiting for data...</p></div>
+                    </div>
                 </div>
 
                 <div class="metrics-section">
@@ -91,7 +95,7 @@
                 </div>
                 
                 <h3 style="margin-top: 20px;">Historical Data</h3>
-                <table id="jobsTable" class="data-table"><thead><tr><th>Job ID</th><th>Queue</th><th>Status</th><th>Time (ms)</th><th>Attempts</th><th>Anomaly</th></tr></thead><tbody id="jobsHistoryBody"><tr><td colspan="6" class="empty">No data</td></tr></tbody></table>
+                <table id="jobsTable" class="data-table"><thead><tr><th>Time</th><th>Job ID</th><th>Queue</th><th>Status</th><th>Time (ms)</th><th>Attempts</th><th>Anomaly</th></tr></thead><tbody id="jobsHistoryBody"><tr><td colspan="7" class="empty">No data</td></tr></tbody></table>
                 <div class="pagination-controls">
                     <button id="jobsNextBtn" class="btn-next" onclick="fetchNextPage('jobs')">Next</button>
                     <span id="jobsPageInfo" class="page-info"></span>
@@ -113,7 +117,7 @@
                 </div>
                 
                 <h3 style="margin-top: 20px;">Historical Data</h3>
-                <table id="queuesTable" class="data-table"><thead><tr><th>Queue</th><th>Wait</th><th>Active</th><th>Done</th><th>Failed</th><th>Status</th></tr></thead><tbody id="queueHistoryBody"><tr><td colspan="6" class="empty">No data</td></tr></tbody></table>
+                <table id="queuesTable" class="data-table"><thead><tr><th>Time</th><th></th>Queue</th><th>Wait</th><th>Active</th><th>Done</th><th>Failed</th><th>Status</th></tr></thead><tbody id="queueHistoryBody"><tr><td colspan="7" class="empty">No data</td></tr></tbody></table>
                 <div class="pagination-controls">
                     <button id="queuesNextBtn" class="btn-next" onclick="fetchNextPage('queue')">Next</button>
                     <span id="queuePageInfo" class="page-info"></span>
@@ -167,7 +171,7 @@
                 </div>
                 
                 <h3 style="margin-top: 20px;">Historical Data</h3>
-                <table id="redisTable" class="data-table"><thead><tr><th>Latency</th><th>Memory %</th><th>Hit Rate</th><th>Evicted</th><th>Status</th></tr></thead><tbody id="redisHistoryBody"><tr><td colspan="5" class="empty">No data</td></tr></tbody></table>
+                <table id="redisTable" class="data-table"><thead><tr><th>Time</th><th></th>Latency</th><th>Memory %</th><th>Hit Rate</th><th>Evicted</th><th>Status</th></tr></thead><tbody id="redisHistoryBody"><tr><td colspan="6" class="empty">No data</td></tr></tbody></table>
                 <div class="pagination-controls">
                     <button id="redisNextBtn" class="btn-next" onclick="fetchNextPage('redis')">Next</button>
                     <span id="redisPageInfo" class="page-info"></span>

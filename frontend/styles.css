@@ -194,6 +194,25 @@ h1 {
     color: var(--text-primary);
 }
 
+/* No Data Animation */
+.no-data-animation {
+    display: inline-block;
+    animation: pulse 2s ease-in-out infinite;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 0.6;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.05);
+    }
+}
+
 .analysis-content {
     font-size: 13px;
     line-height: 1.6;

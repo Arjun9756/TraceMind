@@ -56,7 +56,7 @@ export async function produceItem(topic:string , value:string , key:string , par
         await producer.send({
             topic:topic,
             messages:[{key:key , value , partition}],
-            compression:CompressionTypes.Snappy
+            // compression:CompressionTypes.Snappy
         })
     }
     catch(error:any){

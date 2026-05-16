@@ -11,7 +11,7 @@ import cors from 'cors'
 import mongoose from 'mongoose'
 import redis from './Utility/Redis.config'
 import {connectProducer, disconnectProducer} from './Kafka/KafkaProducer'
-
+import {startConsumer} from './Kafka/KafkaConsumer'
 
 const app = express()
 app.use(cors({
@@ -79,6 +79,7 @@ app.use('/api/redis' , redisRoute)
 
 app.listen(process.env.PORT || 3000 , async ()=>{
     await connectToMongo()
+    await startConsumer()
     await connectProducer()
     console.log(`Server is Running on Port ${process.env.SERVER_PORT || 3000}`)
 })
@@ -108,7 +109,7 @@ async function gracefulShutdown(signal: string) {
         await redis.quit()
         console.log('Redis connection closed')
         
-        console.log('✅ Graceful shutdown completed')
+        console.log('Graceful shutdown completed')
         process.exit(0)
     } catch (error: any) {
         console.error('Error during shutdown:', error?.message)

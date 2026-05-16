@@ -3,25 +3,26 @@ import fs from 'fs'
 import path from 'path'
 
 const retryOption:RetryOptions = {
-    retries:5,
-    initialRetryTime:100,
-    factor:2
+    retries:8,
+    initialRetryTime:300,
+    factor:2,
+    multiplier:2,
+    maxRetryTime:30000
 }
 
 const kafkaClient = new Kafka({
     brokers:["backend-kafka-backenddev.d.aivencloud.com:12576"],
     clientId:"TraceMind",
     ssl:{
-        port:12576,
-        ca:fs.readFileSync(path.join(__dirname , '..' , 'ca.pem') , {encoding:'utf-8'}),
+        ca:[fs.readFileSync(path.join(__dirname , '..' , 'ca.pem') , {encoding:'utf-8'})],
         cert:fs.readFileSync(path.join(__dirname , '..' , 'cert.cert') , {encoding:'utf-8'}),
         key:fs.readFileSync(path.join(__dirname , '..' , 'key.key') , {encoding:"utf-8"}),
-        host:process.env.AIVEN_KAFKA_HOST as string,
         rejectUnauthorized:false,
     },
     retry:retryOption,
-    connectionTimeout:5000,
-    requestTimeout:5000,
+    connectionTimeout:10000,
+    requestTimeout:30000,
+    logLevel: 2  // ERROR level only
 })
 
 export default kafkaClient

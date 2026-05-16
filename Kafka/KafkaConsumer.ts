@@ -3,89 +3,88 @@ import {JobEventHandler} from '../LogicHandlers/JobEvent.Handler'
 import { QueueEventHandler } from "../LogicHandlers/QueueEvent.Handler"
 import { SystemEventHandler } from "../LogicHandlers/SystemEvent.Handler"
 import { RedisEventHandler } from "../LogicHandlers/RedisEvent.Handler"
-import os from 'os'
 
 async function processMessage(partition:number , message:any) {
     try{
         const key = message.key ? message.key.toString() : null
-        if(!key)
+        const value = message.value ? message.value.toString() : null
+        
+        if(!key || !value) {
+            console.log('Message missing key or value')
             return
+        }
+        
+        console.log(`Processing: ${key} from partition ${partition}`)
+        
+        // Parse JSON value
+        const data = JSON.parse(value)
         
         switch(key){
             case "JobEvent":
-                JobEventHandler(message)
+                await JobEventHandler(data)
                 break
             case "QueueEvent":
-                QueueEventHandler(message)
+                await QueueEventHandler(data)
                 break
             case "RedisEvent":
-                RedisEventHandler(message)
+                await RedisEventHandler(data)
                 break
             case "SystemEvent":
-                SystemEventHandler(message)
+                await SystemEventHandler(data)
                 break
             default:
+                console.log(`Unknown message type: ${key}`)
                 break
         }
     }
     catch(error:any){
-        console.log(`Error While Processing Kafka Tasks ${error?.message}`)
+        console.log(`Error processing Kafka message: ${error?.message}`)
     }
 }
 
 const consumer = kafkaClient.consumer({
-    groupId:"Trace-Mind-Consumer"
+    groupId:"Trace-Mind-Consumer",
+    sessionTimeout: 30000,
+    heartbeatInterval: 3000
 })
 
-consumer.on('consumer.connect' , (event)=>{
-    console.log("Kafka Consumer Connected To TraceMind")
+consumer.on('consumer.connect' , ()=>{
+    console.log("Kafka Consumer Connected")
 })
 
-consumer.on('consumer.disconnect' , (event)=>{
-    console.log("Kafka Consumer Disconnected To TraceMind")
+consumer.on('consumer.disconnect' , ()=>{
+    console.log("Kafka Consumer Disconnected")
 })
 
 consumer.on('consumer.crash' , (event)=>{
-    console.log(`Consumer Crashed ${event.payload}`)
-    console.log(`Consumer Will Be Restarted Auto`)
+    console.log(`Consumer Crashed: ${event.payload.error?.message}`)
+    console.log(`Consumer will restart automatically`)
 })
 
-async function startAndSubscribe(){
+export async function startConsumer(){
     try{
+        console.log('Connecting Kafka Consumer...')
+        await consumer.connect()
+        
+        console.log('Subscribing to topic: TraceMindTaskEvents')
         await consumer.subscribe({
-            fromBeginning:true,
-            topic:"TraceMindTaskEvents"
+            topic: "TraceMindTaskEvents",
+            fromBeginning: false  // Only new messages
         })
-
-        console.log("Consumer Subscribe The Topic")
-    }
-    catch(error:any){
-        console.log(`Error While Connecting To Kafka Consumer ${error?.message || "Aiven Kafka Cloud Error"}`)
-    }
-}
-
-async function consumeTopics(){
-    try{
+        
+        console.log('Starting to consume messages...')
         await consumer.run({
-            eachMessage:async function({partition ,message}){
-                await processMessage(partition , message)
+            eachMessage: async ({topic, partition, message}) => {
+                await processMessage(partition, message)
             }
         })
+        
+        console.log('Kafka Consumer is running!')
     }
     catch(error:any){
-
+        console.log(`Kafka Consumer Error: ${error?.message}`)
+        console.log('Consumer will not process messages')
     }
 }
 
-
-startAndSubscribe().then(()=>{
-
-}).catch((error:any)=>{
-
-})
-
-consumeTopics().then(()=>{}).catch((error:any)=>{})
-process.on('SIGINT' , async (signal)=>{
-    console.log("Process Terminated Kafka Consumer ShutDown")
-    await consumer.disconnect()
-})
+startConsumer()

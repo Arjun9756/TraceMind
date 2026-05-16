@@ -3,10 +3,11 @@ import { addToBuffer } from '../Utility/BulkBuffer'
 import JobEventLogic from '../BusinessLogic/JobEvent.logic'
 import { getIO } from '../Websocket/Websocket'
 import generateChat from '../Utility/Groq.AI'
-const io = getIO()
 import { JOB_SYSTEM_PROMPT } from '../Promtps/GroqPrompts'
 
 export async function JobEventHandler(rawData: RawData) {
+    // Get fresh WebSocket instance inside handler function
+    const io = getIO()
 
     // Push the processing time in Redis 
     const response = await JobEventLogic(rawData)
@@ -69,16 +70,16 @@ export async function JobEventHandler(rawData: RawData) {
             }
         })
 
+        console.log("JobEvent Event Emit")
+
         if (calculated.isAnomaly || calculated.isRetryStrom || rawData.status === 'failed') {
             const message = `Queue:${rawData.queueName} Job:${rawData.jobId} Status:${rawData.status} Time:${rawData.processingMs}ms Attempts:${rawData.attemptMade}/${rawData.maxAttempt} ZScore:${calculated.zScore} Anomaly:${calculated.isAnomaly} RetryStorm:${calculated.isRetryStrom}`
             try {
                 const { response: aiResponse } = await generateChat(message, JOB_SYSTEM_PROMPT)
                 const cleaned = aiResponse.trim().replace(/```json|```/g, '').trim()
                 const aiExplanation = JSON.parse(cleaned)
-                console.log('Job AI:', aiExplanation)
                 io.emit('groqJobAnalyse', aiExplanation)
             } catch (error: any) {
-                console.log('Job AI parse error:', error?.message)
                 io.emit('groqJobAnalyse', {
                     summary: `Job ${rawData.jobId} mein ${rawData.status} detected.`,
                     reason: 'AI response parse nahi hua, manual check karo.',

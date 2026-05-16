@@ -45,7 +45,7 @@ export async function QueueEventHandler(rawData: RawData) {
             })
 
             io.emit('groqQueueAnalyse', aiExplanation)
-            console.log(`AI Explain ${cleaned}`)
+            console.log("Queue Event Emit")
         }
         catch (error: any) {
             aiExplanation = {

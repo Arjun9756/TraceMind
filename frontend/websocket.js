@@ -75,17 +75,20 @@ function initWebSocket() {
         });
 
         socket.on('jobSnapshot', (data) => {
-            console.log('Job snapshot received');
+            console.log('Job snapshot received:', data);
             if (!currentData.jobs) currentData.jobs = [];
             currentData.jobs.unshift(data); // Add to beginning
             if (currentData.jobs.length > 5) currentData.jobs.pop(); // Keep last 5
             updateUI('jobs', data);
+            updateHeatmaps(); // Update job heatmap
         });
 
         socket.on('groqJobAnalyse', (data) => {
-            console.log('Job analysis received');
+            console.log('Job analysis received:', data);
             currentData.jobAnalysis = data;
+            displayAnalysis('job', data); // Display in overview section
             updateUI('jobs', data);
+            updateHeatmaps(); // Update job heatmap with analysis
         });
 
         socket.on('disconnect', () => {
@@ -185,14 +188,32 @@ Platform: ${data.raw.platform}`;
             liveStatus.innerHTML = `<span class="${alertClass}">${alertText}</span>`;
         }
     } else if (type === 'jobs') {
-        const isAnomaly = data.isAnomaly || false;
+        const isAnomaly = data.calculated?.isAnomaly || false;
+        const isRetryStorm = data.calculated?.isRetryStrom || false;
         const status = data.status || 'unknown';
+        const processingMs = Math.round(data.processingMs || 0);
+        const jobId = data.jobId || '--';
         
         // Update live jobs status
         const liveStatus = document.getElementById('jobsLiveStatus');
         if (liveStatus) {
-            const alertClass = isAnomaly ? 'alert-danger' : status === 'failed' ? 'alert-warning' : 'alert-success';
-            const alertText = isAnomaly ? 'ANOMALY' : status === 'failed' ? 'FAILED JOB' : 'Running';
+            let alertClass = 'alert-success';
+            let alertText = 'Running';
+            
+            if (isRetryStorm) {
+                alertClass = 'alert-danger';
+                alertText = 'RETRY STORM';
+            } else if (status === 'failed') {
+                alertClass = 'alert-danger';
+                alertText = 'FAILED JOB';
+            } else if (isAnomaly) {
+                alertClass = 'alert-warning';
+                alertText = 'ANOMALY DETECTED';
+            } else if (status === 'completed') {
+                alertClass = 'alert-success';
+                alertText = `Job #${jobId} completed (${processingMs}ms)`;
+            }
+            
             liveStatus.innerHTML = `<span class="${alertClass}">${alertText}</span>`;
         }
     }
@@ -247,6 +268,30 @@ function updateHeatmaps() {
         document.getElementById('redisHeatmap').textContent = latency + 'ms';
         document.getElementById('redisCard').className = 'heatmap-card ' + cardClass;
         document.getElementById('redisAlert').textContent = isAnomaly ? 'Issues!' : '';
+    }
+    
+    // Job heatmap
+    if (currentData.jobs && currentData.jobs.length > 0) {
+        const latestJob = currentData.jobs[0];
+        const status = latestJob.status || 'unknown';
+        const isAnomaly = latestJob.calculated?.isAnomaly || false;
+        const isRetryStorm = latestJob.calculated?.isRetryStrom || false;
+        const processingMs = Math.round(latestJob.processingMs || 0);
+        
+        let cardClass = 'success';
+        let alert = '';
+        
+        if (status === 'failed' || isRetryStorm) {
+            cardClass = 'danger';
+            alert = isRetryStorm ? 'Retry Storm!' : 'Failed!';
+        } else if (isAnomaly) {
+            cardClass = 'warning';
+            alert = 'Anomaly!';
+        }
+        
+        document.getElementById('jobHeatmap').textContent = processingMs + 'ms';
+        document.getElementById('jobCard').className = 'heatmap-card ' + cardClass;
+        document.getElementById('jobAlert').textContent = alert;
     }
 }
 
@@ -351,7 +396,6 @@ async function fetchNextPage(type) {
         if (!apiData || typeof apiData !== 'object') {
             console.error(`Invalid response format for ${type}`);
             if (pageInfo) pageInfo.textContent = 'Error: Invalid response format';
-            if (nextBtn) nextBtn.disabled = true;
             return;
         }
         
@@ -359,9 +403,12 @@ async function fetchNextPage(type) {
         const data = Array.isArray(apiData.data) ? apiData.data : [];
         
         if (data.length === 0) {
-            console.warn(`No data returned for ${type}`);
-            if (pageInfo) pageInfo.textContent = 'No more records available';
-            if (nextBtn) nextBtn.disabled = true;
+            console.warn(`No new data returned for ${type}`);
+            if (pageInfo) {
+                pageInfo.innerHTML = '<span class="no-data-animation">📭 No new data available</span>';
+            }
+            // Keep button enabled for future data
+            if (nextBtn) nextBtn.disabled = false;
             return;
         }
         
@@ -394,21 +441,14 @@ async function fetchNextPage(type) {
         
         console.log(`📊 Updated pagination state for ${type}:`, paginationState[type]);
         
-        // Update UI buttons and info
-        // Disable button only if no data was returned or cursor is null
-        const hasMoreData = data.length > 0 && apiData.nextCursor !== null && apiData.nextCursor !== undefined;
-        
+        // Update UI buttons and info - ALWAYS keep button enabled
         if (nextBtn) {
-            nextBtn.disabled = !hasMoreData;
+            nextBtn.disabled = false; // Always enabled for future data
         }
         
         if (pageInfo) {
             const totalRows = tbody.rows.length;
-            if (hasMoreData) {
-                pageInfo.textContent = `Loaded: ${totalRows} records | Click Next for more`;
-            } else {
-                pageInfo.textContent = `Loaded: ${totalRows} records | End of records`;
-            }
+            pageInfo.textContent = `Loaded: ${totalRows} records | Click Next for more`;
         }
         
     } catch (error) {
@@ -423,9 +463,16 @@ async function fetchNextPage(type) {
 function parseSystemRow(row, record) {
     const cpu = Math.round(record.raw?.cpuPercent || 0);
     const mem = Math.round(record.calculated?.memUsedPercent || 0);
+    const time = new Date(record.capturedAt).toLocaleString('en-IN', { 
+        day: '2-digit', 
+        month: 'short', 
+        hour: '2-digit', 
+        minute: '2-digit',
+        second: '2-digit'
+    });
     
     row.innerHTML = `
-        <td>${new Date(record.capturedAt).toLocaleString()}</td>
+        <td>${time}</td>
         <td>${cpu}%</td>
         <td>${mem}%</td>
         <td><span class="status-${record.status}">${record.status}</span></td>
@@ -437,8 +484,16 @@ function parseQueueRow(row, record) {
     const active = Math.round(record.raw?.active || 0);
     const completed = Math.round(record.raw?.completed || 0);
     const failed = Math.round(record.raw?.failed || 0);
+    const time = new Date(record.capturedAt).toLocaleString('en-IN', { 
+        day: '2-digit', 
+        month: 'short', 
+        hour: '2-digit', 
+        minute: '2-digit',
+        second: '2-digit'
+    });
     
     row.innerHTML = `
+        <td>${time}</td>
         <td>${record.queueName || 'Queue'}</td>
         <td>${waiting}</td>
         <td>${active}</td>
@@ -452,8 +507,16 @@ function parseRedisRow(row, record) {
     const latency = Math.round(record.raw?.latencyMs || 0);
     const memPercent = Math.round((record.raw?.memUsedMB / record.raw?.memMaxMB) * 100) || 0;
     const hitRate = Math.round(record.calculated?.hitRate || 0);
+    const time = new Date(record.capturedAt).toLocaleString('en-IN', { 
+        day: '2-digit', 
+        month: 'short', 
+        hour: '2-digit', 
+        minute: '2-digit',
+        second: '2-digit'
+    });
     
     row.innerHTML = `
+        <td>${time}</td>
         <td>${latency}</td>
         <td>${memPercent}%</td>
         <td>${hitRate}%</td>
@@ -467,8 +530,16 @@ function parseJobRow(row, record) {
     const status = record.status || 'unknown';
     const attempts = record.attemptsMade || 0;
     const anomaly = record.isAnomaly ? 'Yes' : 'No';
+    const time = new Date(record.capturedAt).toLocaleString('en-IN', { 
+        day: '2-digit', 
+        month: 'short', 
+        hour: '2-digit', 
+        minute: '2-digit',
+        second: '2-digit'
+    });
     
     row.innerHTML = `
+        <td>${time}</td>
         <td>${jobId}</td>
         <td>${record.queueName || '--'}</td>
         <td><span class="status-${status}">${status}</span></td>

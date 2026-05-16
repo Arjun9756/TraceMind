@@ -48,6 +48,7 @@ export async function RedisEventHandler(rawData: IRedisSnapshot['raw']) {
             status,
             alertMessage
         })
+        console.log("Redis Event Emit")
 
         let aiExplanation
         try {
@@ -57,10 +58,8 @@ export async function RedisEventHandler(rawData: IRedisSnapshot['raw']) {
                 .replace(/```/g, '')
                 .trim()
             aiExplanation = JSON.parse(cleaned)
-            console.log(aiExplanation)
         }
         catch (error: any) {
-            console.log(`Error in Redis AI Analysis ${error?.message}`)
             aiExplanation = {
                 summary: `Redis mein ${status} issue detected.`,
                 reason: 'AI response parse nahi ho paya, manual check karo.',
